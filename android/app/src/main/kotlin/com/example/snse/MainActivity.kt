@@ -1,4 +1,4 @@
-package com.example.snse
+package com.snse.app
 
 import io.flutter.embedding.android.FlutterActivity
 

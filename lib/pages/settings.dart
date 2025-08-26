@@ -5,14 +5,17 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'dart:developer' as developer;
+import 'package:easy_localization/easy_localization.dart';
+
 import '../main.dart'; // To access themeNotifier
+import '../languages.dart';
 
 const String dataSeparator = "\$";
 
 int gatewayIpLast = 0;
 String readableMaxIp = "";
 bool darkModeSetByUser = false;
-String _themeValue = "Chiaro";
+String _themeValue = "light";
 
 const int defaultPort = 34677; // default port for ESP devices
 
@@ -42,11 +45,15 @@ class SavedSettings {
     };
   }
 
-  void setDefault() {
+  void setDefault(BuildContext? context) {
     _maxIp = DefaultSavedSettings().maxIp;        // max number of IPs to scan
     _darkMode = DefaultSavedSettings().darkMode;
     _scanTimeout = DefaultSavedSettings().scanTimeout;
     _isThemeSystem = DefaultSavedSettings().isThemeSystem;
+    //_locale = DefaultSavedSettings().locale;
+    if (context != null) {
+      context.resetLocale();
+    }
   }
 
   void fromMap(Map<String, dynamic> map) {
@@ -62,7 +69,7 @@ class SavedSettings {
   }
 
   Future<void> load() async {
-    setDefault(); // make sure that there are no uninitialized variables
+    setDefault(null); // make sure that there are no uninitialized variables
 
     final prefs = await SharedPreferences.getInstance();
     final str = prefs.getString('savedSettings');
@@ -119,9 +126,9 @@ class SavedSettings {
         _darkMode = false;
       }
 
-      return "Sistema";
+      return "sys";
     } else {
-      return (_darkMode) ? "Scuro" : "Chiaro";
+      return (_darkMode) ? "dark" : "light";
     }
   }
 }
@@ -218,11 +225,12 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       rebuild = false;
       _getNetworkInfo();
     }
+    
     return Scaffold(
       body: ListView(
         children: [
           ListTile(
-            title: const Text('Informazioni WiFi'),
+            title: Text('settings.connection_info.title'.tr()),
             tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
               //side: const BorderSide(width: 0.8),
@@ -233,15 +241,15 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("IP di questo dispositivo: ${_wifiIPv4 ?? 'N/A'}"),
-                Text("Gateway: ${_wifiGatewayIP ?? 'N/A'}"),
-                Text("Subnet mask: ${_wifiSubmask ?? 'N/A'}"),
-                const Text("Porta usata per le connessioni: $defaultPort"),
+                Text("settings.connection_info.current_ip".tr(args: [_wifiIPv4 ?? 'N/A'])),
+                Text("settings.connection_info.gateway".tr(args: [_wifiGatewayIP ?? 'N/A'])),
+                Text("settings.connection_info.subnet_mask".tr(args: [_wifiSubmask ?? 'N/A'])),
+                Text("settings.connection_info.port".tr(args: [defaultPort.toString()])),
               ],
             ),
           ),
           ListTile(
-            title: const Text('Ricerca Dispositivi'),
+            title: Text("settings.device_discovery.title".tr()),
             tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
               //side: const BorderSide(width: 0.8),
@@ -249,8 +257,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             ),
           ),
           ListTile(
-            title: const Text("Massimo IP per la ricerca"),
-            subtitle: const Text("Verranno scansionati tutti gli IP a partire dal gateway fino all'IP specificato"),
+            title: Text("settings.device_discovery.max_ip".tr()),
+            subtitle: Text("settings.device_discovery.max_ip_description".tr()),
             trailing: SizedBox(
               width: 150,
               child: TextField(
@@ -268,8 +276,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             ),
           ),
           ListTile(
-            title: const Text("Timeout di ricerca"),
-            subtitle: const Text("Timeout di ogni dispositivo scansionato. Se il dispositivo non risponde entro il timeout inserito (in millisecondi), si passa al prossimo"),
+            title: Text("settings.device_discovery.timeout".tr()),
+            subtitle: Text("settings.device_discovery.timeout_description".tr()),
             trailing: SizedBox(
               width: 50,
               child: TextField(
@@ -287,7 +295,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             ),
           ),
           ListTile(
-            title: const Text('Interfaccia'),
+            title: Text("settings.interface.title".tr()),
             tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
               //side: const BorderSide(width: 0.8),
@@ -295,21 +303,21 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             ),
           ),
           ListTile(
-            title: const Text('Tema'),
+            title: Text("settings.interface.theme.title".tr()),
             trailing: DropdownButton<String>(
                 value: _themeValue,
-                items: const [
-                DropdownMenuItem(value: 'Sistema', child: Text('Sistema')),
-                DropdownMenuItem(value: 'Chiaro', child: Text('Chiaro')),
-                DropdownMenuItem(value: 'Scuro', child: Text('Scuro')),
+                items: [
+                  DropdownMenuItem(value: 'sys', child: Text("settings.interface.theme.system".tr())),
+                  DropdownMenuItem(value: 'light', child: Text("settings.interface.theme.light_mode".tr())),
+                  DropdownMenuItem(value: 'dark', child: Text("settings.interface.theme.dark_mode".tr())),
               ],
               onChanged: (value) {
                 _themeValue = value!;
                 setState(() {
-                  if (value == 'Scuro') {
+                  if (value == 'dark') {
                     savedSettings.setDarkMode(true);
                     savedSettings.setThemeSystem(false);
-                  } else if (value == 'Chiaro') {
+                  } else if (value == 'light') {
                     savedSettings.setDarkMode(false);
                     savedSettings.setThemeSystem(false);
                   } else {
@@ -329,28 +337,28 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
               },
             ),
           ),
-          /*ListTile(
-            title: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurface,
-              ),
-              child: const Text("Salva"),
-              onPressed: () {
-                applySettings();
-                savedSettings.save();
-              }
-            )
-          ),*/
+          ListTile(
+            title: Text("settings.interface.language_text".tr()),
+            trailing: DropdownButton<String>(
+              value: Localizations.localeOf(context).languageCode,
+              items: languageDropDownMenuItems(context),
+              onChanged: (value) {
+                if (value != null) {
+                  context.setLocale(Locale(value));
+                }
+              },
+            ),
+          ),
           ListTile(
             title: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 foregroundColor: Theme.of(context).colorScheme.onSurface,
               ),
-              child: const Text("Ripristina a default"),
+              child: Text("settings.restore_to_default".tr()),
               onPressed: () {
                 setState(() {
                   rebuild = true;
-                  savedSettings.setDefault();
+                  savedSettings.setDefault(context);
                   applySettings();
                   savedSettings.save();
                 });

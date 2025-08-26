@@ -2,20 +2,18 @@
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import '../discovery.dart';
-import 'settings.dart';
-
 import 'dart:developer' as developer;
 import 'dart:async';
+import 'package:easy_localization/easy_localization.dart';
 
+import '../discovery.dart';
 import '../tiles/tiles.dart';
+import 'settings.dart';
 
 const int updateTime = 250; // ms
 const int maxTimeouts = 5;
 bool update = true;
-
 bool forceShowNotification = false;
 
 void showPopupOK(BuildContext context, String title, String content) {
@@ -59,25 +57,6 @@ class ESPSocket {
     developer.log("Error in socket: $error", stackTrace: trace);
     _error = true;
   }
-
-  /*Future<String> sendAndWaitForAnswer(data) async {
-    _busy = true;
-    socket.write(data);
-    while (!_dataReceived && !_error) {
-      await Future.delayed(const Duration(milliseconds: 10));
-    }
-
-    if (_error) {
-      _dataReceived = false;
-      _error = false;
-      _busy = false;
-      return "";
-    }
-
-    _dataReceived = false;
-    _busy = false;
-    return _answer;
-  }*/
 
   Future<String> sendAndWaitForAnswerTimeout(data) async {
     _busy = true;
@@ -172,11 +151,11 @@ class Device {
     bool? ret = await showDialog (
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text("Cambia nome"),
+        title: Text(context.tr("device.change_name_dialog_title")),
         content: TextField(
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: "Modifica il nome del dispositivo",
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText: context.tr("device.change_name_dialog_hint"),
           ),
           onChanged: (text) {
             userInputName = text;
@@ -188,10 +167,10 @@ class Device {
 
               sendName(userInputName).then((statusCode) {
                 if (statusCode == "200 OK") {
-                  showPopupOK(context, "Successo", "Nome modificato con successo.");
+                  showPopupOK(context, "device.success_text".tr(), "device.change_name_success".tr());
                 }
                 else {
-                  showPopupOK(context, "Errore", "Impossibile modificare il nome del dispositivo. Riprova.");
+                  showPopupOK(context, "device.error_text".tr(), "device.change_name_error".tr());
                 }
               });
 
@@ -248,7 +227,7 @@ class Device {
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text("Notifica"),
+        title: Text("device.notification".tr()),
         content: Text(notificationText),
         actions: [
           TextButton(
@@ -280,8 +259,8 @@ class Device {
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: const Text("Nessuna nuova notifica"),
-        content: const Text("Non ci sono notifiche"),
+        title: Text("device.no_notif_dialog_title".tr()),
+        content: Text("device.no_notif_dialog_content".tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'OK'),
@@ -441,7 +420,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   }
 
 
-
   // DATA SEPARATOR WILL BE FOUND IN settings.dart
   // for example: switch1<DATA SEPARATOR>Valvola1,sensor<DATA SEPARATOR>Stato<DATA SEPARATOR>aperta,sensor<DATA SEPARATOR>Litri/s<DATA SEPARATOR>5.24;
 
@@ -495,19 +473,19 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     onTap: () async {
                       bool notBusy = await waitBusy(widget.device);
                       if (!notBusy) {
-                        showPopupOK(context, "Errore", "Il dispositivo è ancora occupato");
+                        showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
                         return;
                       }
 
                       bool stopped = await stopUpdate(widget.device);
                       if (!stopped) {
-                        showPopupOK(context, "Errore", "Timeout durante l'aggiornamento dei valori");
+                        showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
                         return;
                       }
 
                       String statusCode = await widget.device.openCloseValve(switchId);
                       if (statusCode != "200 OK") {
-                        showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                        showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                       }
 
                       startUpdate(context, widget.device);
@@ -603,23 +581,23 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 child: Text(buttonText),
                 onPressed: () async {
                   if (dataToSend == "") {
-                    showPopupOK(context, "Errore", "Nessun contenuto inviato.");
+                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   } else {
                     bool notBusy = await waitBusy(widget.device);
                     if (!notBusy) {
-                      showPopupOK(context, "Errore", "Il dispositivo è ancora occupato");
+                      showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
                       return;
                     }
 
                     bool stopped = await stopUpdate(widget.device);
                     if (!stopped) {
-                      showPopupOK(context, "Errore", "Timeout durante l'aggiornamento dei valori");
+                      showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
                       return;
                     }
 
                     String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
                     if (statusCode != "200 OK") {
-                      showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                      showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                     }
 
                     startUpdate(context, widget.device);
@@ -671,13 +649,13 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             onPressed: () async {
               bool notBusy = await waitBusy(widget.device);
               if (!notBusy) {
-                showPopupOK(context, "Errore", "Il dispositivo è ancora occupato");
+                showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
                 return;
               }
 
               bool stopped = await stopUpdate(widget.device);
               if (!stopped) {
-                showPopupOK(context, "Errore", "Timeout durante l'aggiornamento dei valori");
+                showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
                 return;
               }
 
@@ -686,19 +664,19 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 String template = dataToSend.split("send")[1];
                 String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout("$template${textInputController.text}");
                 if (statusCode.split("\n")[0] != "200 OK") {
-                  showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                  showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
                 textInputController.clear();
                 startUpdate(context, widget.device);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    showPopupOK(context, "Errore", "Nessun contenuto inviato.");
+                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
                   String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
-                    showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                    showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
                   startUpdate(context, widget.device);
                 }
@@ -801,13 +779,13 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             onPressed: () async {
               bool notBusy = await waitBusy(widget.device);
               if (!notBusy) {
-                showPopupOK(context, "Errore", "Il dispositivo è ancora occupato");
+                showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
                 return;
               }
 
               bool stopped = await stopUpdate(widget.device);
               if (!stopped) {
-                showPopupOK(context, "Errore", "Timeout durante l'aggiornamento dei valori");
+                showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
                 return;
               }
 
@@ -817,18 +795,18 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 String timeToSend = "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}-${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}";
                 String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout("$template$timeToSend");
                 if (statusCode.split("\n")[0] != "200 OK") {
-                  showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                  showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
                 startUpdate(context, widget.device);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    showPopupOK(context, "Errore", "Nessun contenuto inviato.");
+                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
                   String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
-                    showPopupOK(context, "Riprova", "Impossibile inviare il comando:\n$statusCode");
+                    showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
                   startUpdate(context, widget.device);
                 }

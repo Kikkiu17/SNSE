@@ -1,16 +1,15 @@
-import 'dart:io' show Socket;
-
-import '../discovery.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'device.dart';
-//import 'package:flashy_tab_bar2/flashy_tab_bar2.dart';
-import '../flashytabbar/flashy_tab_bar2.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:easy_localization/easy_localization.dart';
 
-import 'settings.dart';
 import '../main.dart';
+import 'settings.dart';
 
+import 'device.dart';
+import '../discovery.dart';
 import '../tiles/tiles.dart';
+import '../flashytabbar/flashy_tab_bar2.dart';
 
 const int maxPages = 3;
 const int homePageIndex = 0;
@@ -28,10 +27,8 @@ class HomePage extends StatefulWidget
 
 class _HomePageState extends State<HomePage> {
   Socket? socket;
-  static Widget pageToRender = const Text('Caricamento...');
-
+  static Widget pageToRender = Text("loading_text".tr());
   static bool _updateExistingIDs = true;
-
   static List<String> _existingIPandIDs = List.empty(growable: true);
 
   //static DevicePage? page;
@@ -40,10 +37,12 @@ class _HomePageState extends State<HomePage> {
   static int _selectedIndex = 0;
 
   bool darkTheme = false;
+  bool firstRun = true;
+  late Locale lastLocale;
 
 @override
   void initState() {
-    pages[devicePageIndex] = grayTextCenteredTile("Nessun dispositivo selezionato");
+    pages[devicePageIndex] = grayTextCenteredTile("no_device_selected".tr());
     pages[settingsPageIndex] = const SettingsPage();
     _createDeviceList();
     super.initState();
@@ -86,7 +85,6 @@ class _HomePageState extends State<HomePage> {
         ipsAndIds.add("${dev.ip};${dev.id}");
       }
 
-
       if (cardList.isNotEmpty) {
         cardList.add(
           const Padding(padding: EdgeInsets.only(top: 8.0))
@@ -96,7 +94,7 @@ class _HomePageState extends State<HomePage> {
         cardList.add(
         ListTile(
             title: ElevatedButton(
-              child: const Text("Aggiorna"),
+              child: Text(context.tr("update_list_text")),
               onPressed: () {
                 setState(() {
                   _updateExistingIDs = true;
@@ -107,14 +105,14 @@ class _HomePageState extends State<HomePage> {
           )
         );
       } else {
-        cardList.add(grayTextCenteredTile("Nessun dispositivo trovato"));
+        cardList.add(grayTextCenteredTile(context.tr("no_device_found")));
       }
 
       // discovery button
       cardList.add(
       ListTile(
           title: ElevatedButton(
-            child: const Text("Trova nuovi dispositivi"),
+            child: Text(context.tr("discover_devices_text")),
             onPressed: () {
               setState(() {
                 _updateExistingIDs = false;
@@ -190,13 +188,33 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (firstRun) {
+      firstRun = false;
+
+      // set app language to device language, if available
+      context.setLocale(Locale(Localizations.localeOf(context).languageCode));
+      lastLocale = context.locale;
+    }
+
+    if (context.locale != lastLocale) {
+      lastLocale = context.locale;
+
+      if (_selectedDevice.name == "") {
+        pages[devicePageIndex] = grayTextCenteredTile("no_device_selected".tr());
+        pages[settingsPageIndex] = const SettingsPage();
+      }
+
+      // rebuild device list to update language
+      _createDeviceList();
+    }
+
     pageToRender = pages[_selectedIndex];
 
     // Titles for the AppBar
     final List<String> titles = [
-      "Dispositivi",
+      context.tr("devices_text"),
       _selectedDevice.name,
-      "Impostazioni",
+      context.tr("settings_text"),
     ];
 
     // Get theme colors
@@ -210,7 +228,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 18.0),
-            child: (_selectedIndex == homePageIndex) ? const Text("") :
+            child: (_selectedIndex != devicePageIndex || _selectedDevice.name == "") ? const Text("") :
             IconButton(
               icon: const Icon(Icons.notifications),
               onPressed: () {
@@ -248,19 +266,19 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.list),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: const Text('Lista', style: TextStyle(fontSize: 16)),
+            title: Text(context.tr("list_text"), style: const TextStyle(fontSize: 16)),
           ),
           FlashyTabBarItem(
             icon: const Icon(Icons.sensors),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: const Text('Dispositivo', style: TextStyle(fontSize: 16)),
+            title: Text(context.tr("devices_text"), style: const TextStyle(fontSize: 16)),
           ),
           FlashyTabBarItem(
             icon: const Icon(Icons.settings),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: const Text('Impostazioni', style: TextStyle(fontSize: 16)),
+            title: Text(context.tr("settings_text"), style: const TextStyle(fontSize: 16)),
           ),
         ],
       ),

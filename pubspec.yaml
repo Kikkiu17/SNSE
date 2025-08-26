@@ -43,6 +43,9 @@ dependencies:
   flashy_tab_bar2: ^0.0.10
   network_info_plus: ^6.1.4
   permission_handler: ^12.0.1
+  flutter_localizations:
+    sdk: flutter
+  easy_localization: ^3.0.8
 
 dev_dependencies:
   flutter_test:
@@ -71,6 +74,13 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/lang/en.json
+    - assets/lang/it.json
+    - assets/lang/de.json
+    - assets/lang/fr.json
+    - assets/lang/es.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

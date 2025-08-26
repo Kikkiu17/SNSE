@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 /*const ListTile loadingTile = ListTile(
   title: Padding(
@@ -18,17 +19,17 @@ import 'package:flutter/material.dart';
   )
 );*/
 
-const ListTile loadingTile = ListTile(
+ListTile loadingTile = ListTile(
     title: Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
-      SizedBox(
+      const SizedBox(
         width: 24,
         height: 24,
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
-      SizedBox(width: 16),
-      Text("Caricamento..."),
+      const SizedBox(width: 16),
+      Text("loading_text".tr()),
     ],
   ),
 );
