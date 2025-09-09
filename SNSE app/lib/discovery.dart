@@ -7,27 +7,27 @@ import 'pages/settings.dart';
 const String idTemplate = "ESPDEVICE";
 int timeout = 250; // ms
 
-Future<Device> createDevice(String ip, ESPSocket socket) async
+Future<Device> createDevice(String ip, TcpClient client) async
 {
   Device device = Device();
   device.ip = ip;
 
   // --- GET DEVICE ID ---
-  String response = await socket.sendAndWaitForAnswerTimeout("GET ?wifi=ID");
+  String response = await client.sendData("GET ?wifi=ID");
   if (!response.contains("200 OK")) {
     return device;
   }
   device.id = response.split("\n")[1];
 
   // --- GET DEVICE NAME ---
-  response = await socket.sendAndWaitForAnswerTimeout("GET ?wifi=name");
+  response = await client.sendData("GET ?wifi=name");
   if (!response.contains("200 OK")) {
     return device;
   }
   device.name = response.split("\n")[1];
   
   // --- GET DEVICE FEATURES ---
-  response = await socket.sendAndWaitForAnswerTimeout("GET ?features");
+  response = await client.sendData("GET ?features");
   if (!response.contains("200 OK")) {
     return device;
   }
@@ -70,10 +70,10 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     // ip;id
     ip = ip.split(";")[0];
 
-    Device tempDev = Device();
-    tempDev.ip = ip;
+    print("NIGGA: $ip");
 
-    bool connected = await tempDev.espsocket.connect(tempDev.ip, defaultPort);
+    TcpClient client = TcpClient();
+    bool connected = await client.connect(ip, defaultPort, null);
 
     if (!connected) {
       if (!newList) {
@@ -88,22 +88,27 @@ Future<List<Device>> discoverDevices(List<String> ips) async
       continue;
     }
 
-    String response = await tempDev.espsocket.sendAndWaitForAnswerTimeout("GET ?wifi=IP");
+    String response = await client.sendData("GET ?wifi=IP");
     if (!response.contains("200 OK")) {
       // retry
       sleep(const Duration(milliseconds: 25));
-      response = await tempDev.espsocket.sendAndWaitForAnswerTimeout("GET ?wifi=IP");
+      response = await client.sendData("GET ?wifi=IP");
     }
     
-    if (response.contains("200 OK")) {
-      ip = response.split("\n")[1];
-    } else {
-      tempDev.espsocket.close();
+    try {
+      if (response.contains("200 OK")) {
+        ip = response.split("\n")[1];
+      } else {
+        client.disconnect();
+        continue;
+      }
+    } catch (e) {
+      client.disconnect();
       continue;
     }
 
-    Device device = await createDevice(ip, tempDev.espsocket);
-    tempDev.espsocket.close();
+    Device device = await createDevice(ip, client);
+    client.disconnect();
 
     devices.add(device);
   }

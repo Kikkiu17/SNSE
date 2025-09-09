@@ -4,7 +4,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:network_info_plus/network_info_plus.dart';
-import 'dart:developer' as developer;
+import 'dart:developer' as dev;
 import 'package:easy_localization/easy_localization.dart';
 
 import '../main.dart'; // To access themeNotifier
@@ -19,6 +19,9 @@ String _themeValue = "light";
 
 const int defaultPort = 34677; // default port for ESP devices
 
+String extServerIP = "";
+const int extServerPort = 34678;
+
 // Helper encode/decode functions:
 String encode(Map<String, dynamic> map) => jsonEncode(map);
 Map<String, dynamic> decode(String str) => jsonDecode(str);
@@ -26,8 +29,9 @@ Map<String, dynamic> decode(String str) => jsonDecode(str);
 class DefaultSavedSettings {
   final int maxIp = 64;
   final bool darkMode = false;
-  final int scanTimeout = 15; // ms
+  final int scanTimeout = 30; // ms
   final bool isThemeSystem = true;
+  final String extServerIP = "127.0.0.1";
 }
 
 class SavedSettings {
@@ -35,6 +39,7 @@ class SavedSettings {
   static bool _darkMode = DefaultSavedSettings().darkMode;
   static int _scanTimeout = DefaultSavedSettings().scanTimeout;
   static bool _isThemeSystem = DefaultSavedSettings().isThemeSystem;
+  static String _extServerIP = DefaultSavedSettings().extServerIP;
 
   Map<String, dynamic> toMap() {
     return {
@@ -42,6 +47,7 @@ class SavedSettings {
       'darkMode': _darkMode,
       'scanTimeout': _scanTimeout,
       'isThemeSystem': _isThemeSystem,
+      'extServerIP': _extServerIP
     };
   }
 
@@ -50,6 +56,7 @@ class SavedSettings {
     _darkMode = DefaultSavedSettings().darkMode;
     _scanTimeout = DefaultSavedSettings().scanTimeout;
     _isThemeSystem = DefaultSavedSettings().isThemeSystem;
+    _extServerIP = DefaultSavedSettings().extServerIP;
     //_locale = DefaultSavedSettings().locale;
     if (context != null) {
       context.resetLocale();
@@ -61,6 +68,7 @@ class SavedSettings {
     _darkMode = map['darkMode'];
     _scanTimeout = map['scanTimeout'];
     _isThemeSystem = map['isThemeSystem'];
+    _extServerIP = map['extServerIP'];
   }
 
   Future<void> save() async {
@@ -131,6 +139,14 @@ class SavedSettings {
       return (_darkMode) ? "dark" : "light";
     }
   }
+
+  void setExtServerIP(String ip) {
+    _extServerIP = ip;
+  }
+
+  String getExtServerIP() {
+    return _extServerIP;
+  }
 }
 
 SavedSettings savedSettings = SavedSettings();
@@ -153,6 +169,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
   @override
   void initState() {
     _getNetworkInfo();
+    extServerIP = savedSettings.getExtServerIP();
     WidgetsBinding.instance.addObserver(this);
     super.initState();
   }
@@ -177,30 +194,35 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
 
   void applySettings() {
     // SAVE IP
+    _themeValue = savedSettings.getThemeText();
+    themeNotifier.value = savedSettings.isDarkMode() ? ThemeMode.dark : ThemeMode.light;
+
+
     if (!rebuild) {
-      if (readableMaxIp.split('.').length != 4) return developer.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
+      if (extServerIP.split('.').length == 4) {
+        savedSettings.setExtServerIP(extServerIP);
+      }
+
+      if (readableMaxIp.split('.').length != 4) return dev.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
 
       int? maxIp = int.tryParse(readableMaxIp.split('.').last);
-      if (maxIp == null || maxIp <= gatewayIpLast || maxIp > 255) return developer.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
+      if (maxIp == null || maxIp <= gatewayIpLast || maxIp > 255) return dev.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
 
       savedSettings.setMaxIp(maxIp);
     }
-
-    _themeValue = savedSettings.getThemeText();
-    themeNotifier.value = savedSettings.isDarkMode() ? ThemeMode.dark : ThemeMode.light;
   }
 
   Future<void> _getNetworkInfo() async {
     try {
       _wifiIPv4 = await _networkInfo.getWifiIP();
     } on PlatformException catch (e) {
-      developer.log('Failed to get Wifi IPv4', error: e);
+      dev.log('Failed to get Wifi IPv4', error: e);
     }
 
     try {
       _wifiSubmask = await _networkInfo.getWifiSubmask();
     } on PlatformException catch (e) {
-      developer.log('Failed to get Wifi submask address', error: e);
+      dev.log('Failed to get Wifi submask address', error: e);
     }
 
     try {
@@ -209,13 +231,13 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
         gatewayIpLast = int.parse(_wifiGatewayIP!.split('.').last);
       }
     } on PlatformException catch (e) {
-      developer.log('Failed to get Wifi gateway address', error: e);
+      dev.log('Failed to get Wifi gateway address', error: e);
     }
 
     readableMaxIp = "${(_wifiGatewayIP ?? "N/A").split(".").sublist(0, 3).join(".")}.${savedSettings.getMaxIp()}";
 
-    developer.log("WiFi IPv4: $_wifiIPv4, Gateway: $_wifiGatewayIP, Submask: $_wifiSubmask");
-    developer.log("Readable Max IP: $readableMaxIp");
+    dev.log("WiFi IPv4: $_wifiIPv4, Gateway: $_wifiGatewayIP, Submask: $_wifiSubmask");
+    dev.log("Readable Max IP: $readableMaxIp");
     setState(() {});
   }
 
@@ -224,6 +246,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     if (rebuild) {
       rebuild = false;
       _getNetworkInfo();
+      extServerIP = savedSettings.getExtServerIP();
     }
     
     return Scaffold(
@@ -245,7 +268,28 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                 Text("settings.connection_info.gateway".tr(args: [_wifiGatewayIP ?? 'N/A'])),
                 Text("settings.connection_info.subnet_mask".tr(args: [_wifiSubmask ?? 'N/A'])),
                 Text("settings.connection_info.port".tr(args: [defaultPort.toString()])),
+                Text("settings.connection_info.ext_server_ip_port".tr(args: [extServerPort.toString()])),
               ],
+            ),
+          ),
+          ListTile(
+            title: Text("settings.connection_info.ext_server_ip".tr()),
+            subtitle: Text("settings.connection_info.ext_server_ip_description".tr()),
+            trailing: SizedBox(
+              width: 140,
+              height: 25,
+              child: TextField(
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.only(bottom: 1),
+                  hintText: extServerIP,
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  extServerIP = value;
+                },
+              ),
             ),
           ),
           ListTile(
@@ -260,13 +304,14 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             title: Text("settings.device_discovery.max_ip".tr()),
             subtitle: Text("settings.device_discovery.max_ip_description".tr()),
             trailing: SizedBox(
-              width: 150,
+              width: 140,
+              height: 25,
               child: TextField(
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.only(bottom: 1),
                   hintText: readableMaxIp,
                   border: const OutlineInputBorder(),
-                  isDense: true,
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {

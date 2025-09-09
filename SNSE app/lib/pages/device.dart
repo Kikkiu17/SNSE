@@ -1,11 +1,15 @@
 // warning not needed, context is always mounted here
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:collection';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'dart:developer' as developer;
+import 'dart:developer' as debug;
 import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
+import '../externalfeatures.dart';
+import 'dart:convert';
 
 import '../discovery.dart';
 import '../tiles/tiles.dart';
@@ -15,6 +19,225 @@ const int updateTime = 250; // ms
 const int maxTimeouts = 5;
 bool update = true;
 bool forceShowNotification = false;
+
+class Lock {
+  bool _locked = false;
+
+  Future<T> synchronized<T>(Future<T> Function() func) async {
+    while (_locked) {
+      await Future.delayed(const Duration(milliseconds: 10));
+    }
+    _locked = true;
+    try {
+      return await func();
+    } finally {
+      _locked = false;
+    }
+  }
+}
+
+class TcpClient {
+  Socket? _socket;
+  final _responseQueue = Queue<Completer<String>>();
+  final _sendLock = Lock();
+  bool _sendingLoopActive = false;
+
+  int _lastNotificationID = 0;
+
+  Device? linkedDevice;
+
+  bool _stopRequested = false;
+  Completer<void>? _loopCompleter;
+
+
+  Future<void> connectAndStartLoop(String host, int port, Device? dev, BuildContext context) async {
+    bool connected = await connect(host, port, dev);
+    if (connected) {
+      await dev!.client.startSendingLoop(context);
+    } else {
+      showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
+    }
+  }
+
+  /// Connect to the server and return true if successful
+  Future<bool> connect(String host, int port, Device? dev) async {
+    linkedDevice = dev;
+    try {
+      _socket = await Socket.connect(host, port);
+      _socket!.listen(_onData, onError: _onError, onDone: _onDone);
+      debug.log("Connected to da");
+      return true;
+    } catch (e) {
+      debug.log('Connection failed: $e');
+      _socket = null;
+      return false;
+    }
+  }
+
+  /// Handle incoming data and match it to the correct completer
+  String _buffer = "";
+
+  void _onData(Uint8List data) {
+    _buffer += utf8.decode(data);
+
+    while (_buffer.contains("\r\n")) {
+      final index = _buffer.indexOf("\r\n");
+      final completeResponse = _buffer.substring(0, index);
+      _buffer = _buffer.substring(index + 2);
+
+      if (_responseQueue.isNotEmpty) {
+        final completer = _responseQueue.removeFirst();
+        completer.complete(completeResponse);
+      } else {
+        debug.log('Unexpected response: $completeResponse');
+      }
+    }
+  }
+
+
+  void _onError(error) {
+    debug.log('Socket error: $error');
+    _socket?.destroy();
+    _socket = null;
+  }
+
+  void _onDone() {
+    debug.log('Socket closed');
+    _socket = null;
+  }
+
+  /// Send a single request and wait for its response
+  Future<String> sendData(String data) async {
+    final result = await _sendLock.synchronized(() async {
+      if (_socket == null) {
+        throw Exception('Socket is not connected.');
+      }
+
+      final completer = Completer<String>();
+      _responseQueue.add(completer);
+      _socket!.write(data);
+
+      return await completer.future.timeout(Duration(milliseconds: timeout), onTimeout: () {
+        _responseQueue.remove(completer);
+        debug.log('No response within $timeout ms. Request: $data');
+        return ""; // Return empty string on timeout
+      });
+    });
+
+    return result;
+  }
+
+  /// Start the periodic loop that sends two requests every 250ms
+  Future<void> startSendingLoop(BuildContext context) async {
+    if (linkedDevice == null) return;
+      if (_sendingLoopActive) return;
+
+    _sendingLoopActive = true;
+    _stopRequested = false;
+
+    _loopCompleter = Completer<void>();
+
+    _loop(context);
+  }
+
+  Future<void> _loop(BuildContext context) async {
+    while (!_stopRequested) {
+      try {
+        final notification = await sendData("GET ?notification\n");
+        handleNotification(notification, context);
+
+        final features = await sendData("GET ?features\n");
+        linkedDevice!.features = features.split("\n")[1].split(";");
+        generateIOs.value = !generateIOs.value;
+      } catch (e) {
+        debug.log('Error during periodic send: $e');
+      }
+
+      await Future.delayed(const Duration(milliseconds: updateTime));
+    }
+
+    _sendingLoopActive = false;
+    _loopCompleter?.complete();
+    _loopCompleter = null;
+  }
+
+  Future<void> stopSendingLoop() async {
+    if (!_sendingLoopActive) return;
+
+    _stopRequested = true;
+
+    // Wait for the loop to finish
+    await _loopCompleter?.future;
+  }
+
+  String getNotification(String notificationText) {
+    try {
+      notificationText = notificationText.split("200 OK")[1].trim();
+      int notificationID = int.parse(notificationText.split(dataSeparator)[0]);
+
+      if (notificationID != _lastNotificationID || forceShowNotification) {
+        _lastNotificationID = notificationID;
+        return notificationText.split(dataSeparator)[1];
+      }
+    } catch (e) {
+      return "";
+    }
+
+    return "";
+  }
+  
+  void showNotification(BuildContext context, String notificationText) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text("device.notification".tr()),
+        content: Text(notificationText),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'OK'),
+            child: const Text('OK'),
+          ),
+        ],
+      )
+    );
+  }
+
+  void showNoNewNotifications(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text("device.no_notif_dialog_title".tr()),
+        content: Text("device.no_notif_dialog_content".tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'OK'),
+            child: const Text('OK'),
+          ),
+        ],
+      )
+    );
+  }
+
+  void handleNotification(String notificationText, BuildContext context) {
+    notificationText = getNotification(notificationText);
+    if (notificationText != "" || forceShowNotification) {
+      if (context.mounted) {
+        if (notificationText == "" && forceShowNotification) {
+          showNoNewNotifications(context);
+        } else {
+          showNotification(context, notificationText);
+        }
+        forceShowNotification = false;
+      }
+    }
+  }
+
+  void disconnect() {
+    stopSendingLoop();
+    _socket?.destroy();
+    _socket = null;
+  }
+}
 
 void showPopupOK(BuildContext context, String title, String content) {
   showDialog(
@@ -32,116 +255,18 @@ void showPopupOK(BuildContext context, String title, String content) {
   );
 }
 
-class ESPSocket {
-  late Socket socket;
-  static String _answer = "";
-  static bool _dataReceived = false;
-  static bool _error = false;
-  static bool _busy = false;
-
-  void setBusy(bool value) {
-    _busy = value;
-  }
-
-  bool isBusy() {
-    return _busy;
-  }
-
-  void dataHandler(data) async {
-    _answer = String.fromCharCodes(data).trim();
-    developer.log("Received: $_answer");
-    _dataReceived = true;
-  }
-
-  void errorHandler(error, StackTrace trace) {
-    developer.log("Error in socket: $error", stackTrace: trace);
-    _error = true;
-  }
-
-  Future<String> sendAndWaitForAnswerTimeout(data) async {
-    _busy = true;
-    socket.write(data);
-
-    int elapsed = 0;
-    while (!_dataReceived && !_error && elapsed < timeout) {
-      await Future.delayed(const Duration(milliseconds: 10));
-      elapsed += 10;
-    }
-
-    _busy = false;
-
-    if (_error) {
-      _dataReceived = false;
-      _error = false;
-      return "";
-    }
-
-    if (!_dataReceived) {
-      return "";
-    }
-
-    _dataReceived = false;
-    return _answer;
-  }
-
-  /*Future<String> getAnswerTimeout() async {
-    await socket.flush();
-    try {
-      var answer = await _completer.future.timeout(Duration(milliseconds: timeout));
-      _completer = Completer();
-      answer = utf8.decode(answer);
-      return answer;
-    } catch (e) {
-      return "";
-    }
-  }*/
-
-  Future<bool> connect(String ip, int port) async {
-    try {
-      socket = await Socket.connect(ip, defaultPort);
-    } catch (e) {
-      developer.log("Error connecting to socket: $e");
-      return false;
-    }
-
-    developer.log("Connected to $ip");
-    _busy = false;
-    
-    socket.listen(
-      dataHandler,
-      onError: errorHandler,
-      cancelOnError: false
-    );
-
-    return true;
-  }
-
-  Future<void> flush() async {
-    _busy = false;
-    await socket.flush();
-  }
-
-  Future<void> close() async {
-    _busy = false;
-    await socket.flush();
-    await socket.close();
-  }
-}
-
 class Device {
   String id = "";
   String name = "";
   String ip = "";
   List<String> features = List.empty(growable: true);
-  final ESPSocket espsocket = ESPSocket();
+  final TcpClient client = TcpClient();
   bool updatingValues = false;
-  int _lastNotificationID = 0;
 
   Future<String> sendName(String name) async {
-    while (!await espsocket.connect(ip, defaultPort)) {}
-    await espsocket.flush();
-    String resp = await espsocket.sendAndWaitForAnswerTimeout("POST ?wifi=changename&name=$name");
-    await espsocket.close();
+    while (!await client.connect(ip, defaultPort, this)) {}
+    String resp = await client.sendData("POST ?wifi=changename&name=$name");
+    client.disconnect();
     return resp.split("\n")[0];
   }
 
@@ -189,99 +314,21 @@ class Device {
     return ret;
   }
 
-  Future<bool> getFeatures() async {
-    String response = await espsocket.sendAndWaitForAnswerTimeout("GET ?features");
-    if (!response.contains("200 OK") || response == "") {
-      return false;
-    }
-    features = response.split("\n")[1].split(";");
-    return true;
-  }
-
   DevicePage setThisDevicePage() {
     return DevicePage(device: this);
-  }
-
-  Future<String> getNotification(bool showAnyway) async {
-    String response = await espsocket.sendAndWaitForAnswerTimeout("GET ?notification");
-    if (!response.contains("200 OK") || response.contains("Vuoto")) {
-      return "";
-    }
-
-    try {
-      response = response.split("200 OK")[1].trim();
-      int notificationID = int.parse(response.split(dataSeparator)[0]);
-
-      if (notificationID != _lastNotificationID || showAnyway) {
-        _lastNotificationID = notificationID;
-        return response.split(dataSeparator)[1];
-      }
-    } catch (e) {
-      return "";
-    }
-
-    return "";
-  }
-
-  void showNotification(BuildContext context, String notificationText) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text("device.notification".tr()),
-        content: Text(notificationText),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'OK'),
-            child: const Text('OK'),
-          ),
-        ],
-      )
-    );
-  }
-
-  Future<bool> getAndShowNotification(BuildContext context, bool showAnyway) async {
-    String notificationText = await getNotification(showAnyway);
-    if (notificationText != "" || showAnyway) {
-      if (context.mounted) {
-        if (notificationText == "" && showAnyway) {
-          showNoNewNotifications(context);
-        } else {
-          showNotification(context, notificationText);
-        }
-        showAnyway = false;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  void showNoNewNotifications(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text("device.no_notif_dialog_title".tr()),
-        content: Text("device.no_notif_dialog_content".tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'OK'),
-            child: const Text('OK'),
-          ),
-        ],
-      )
-    );
   }
 
   // FUNZIONI PERSONALIZZATE PER L'APPLICAZIONE SPECIFICA
   // FUNZIONI PULSANTE
   Future<String> openCloseValve(String id) async {
     //await espsocket.flush();
-    String resp = await espsocket.sendAndWaitForAnswerTimeout("GET ?valve=$id");
+    String resp = await client.sendData("GET ?valve=$id");
     if (resp.contains("200 OK")) {
       String isOpen = resp.split("\n")[1];
       if (isOpen == "aperta") {
-        espsocket.sendAndWaitForAnswerTimeout("POST ?valve=$id&cmd=close");
+        client.sendData("POST ?valve=$id&cmd=close");
       } else if (isOpen == "chiusa") {
-        espsocket.sendAndWaitForAnswerTimeout("POST ?valve=$id&cmd=open");
+        client.sendData("POST ?valve=$id&cmd=open");
       }
     }
 
@@ -305,61 +352,25 @@ late Timer timer;
 
 late ValueNotifier<bool> generateIOs;
 ValueNotifier<bool> updateIOs = ValueNotifier(false);
+ValueNotifier<bool> updateExternalFeaturesListener = ValueNotifier(false);
 
-Future<bool> connect(BuildContext context, Device dev) async {
-  bool connected = await dev.espsocket.connect(dev.ip, defaultPort);
-
-  if (connected) {
-    developer.log("Starting");
-    startUpdate(context, dev);
-    return true;
-  }
-
-  return false;
-}
-
-void startUpdate(BuildContext context, Device dev) async {
-  update = true;
-  exit = false;
-  updateDirectUserIOs(context, dev);
-}
-
-Future<bool> stopUpdate(Device dev) async {
-  const int delayDuration = 5;
-  update = false;
-  int elapsed = 0;
-  while (!exit) {
-    await Future.delayed(const Duration(milliseconds: delayDuration));
-    // wait for the update to finish
-    elapsed += delayDuration;
-    if (elapsed > timeout) {
-      return false;
-    }
-  }
-  return true;
-}
-
-Future<bool> waitBusy(Device dev) async {
-  // returns whether the device is not busy
-  const int delayDuration = 5;
-  int elapsed = 0;
-  while (dev.espsocket.isBusy()) {
-    await Future.delayed(const Duration(milliseconds: delayDuration));
-    elapsed += delayDuration;
-    if (elapsed > timeout) {
-      dev.espsocket.setBusy(false);
-      return true;
-    }
-  }
-
-  return true;
-}
-
-bool exit = false;
 List<Widget> userIOs = List.empty(growable: true);
 bool firstRun = true;
 
+class ExternalFeature
+{
+  ExternalFeature(this.index, this.id, this.widget);
+  final int index;
+  final int id;
+  final Widget widget;
+}
+List<Widget> externalFeaturesWidgets = List.empty(growable: true);
+String rawExternalFeatures = "";
+ValueNotifier<bool> addExternalFeaturesListener = ValueNotifier(false);
+
 class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
+  bool rawExternalFeaturesAdded = false;
+
   void _generateIOsListener() {
     if (!update) return;
     updateIOs.value = false;
@@ -370,15 +381,21 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    rawExternalFeatures = "";
+    externalFeaturesWidgets.clear();
     firstRun = true;
     userIOs = List.empty(growable: true);
     userIOs.add(loadingTileNoText);
     generateIOs = ValueNotifier(false);
     generateIOs.addListener(_generateIOsListener);
 
-    connect(context, widget.device).then((connected) {
+    addExternalFeaturesListener.addListener(_addExternalFeature);
+
+    widget.device.client.connect(widget.device.ip, defaultPort, widget.device).then((connected) {
       if (connected) {
-        userIOs = _generateDirectUserIOs(widget.device);
+        widget.device.client.startSendingLoop(context);
+      } else {
+        showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
       }
     });
 
@@ -389,14 +406,12 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   void dispose() {
     firstRun = false;
     Future.microtask(() async {
-      await stopUpdate(widget.device);
+      widget.device.client.disconnect();
       generateIOs.removeListener(_generateIOsListener);
       generateIOs.dispose();
-      //widget.device.espsocket.flush();
-      //widget.device.espsocket.socket.flush();
-      //widget.device.espsocket.socket.destroy();
-      widget.device.espsocket.close();
     });
+
+    addExternalFeaturesListener.removeListener(_addExternalFeature);
 
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -407,15 +422,16 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.detached ||
     state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
       // app in background
-      Future.microtask(() async {
-        await stopUpdate(widget.device);
-        widget.device.espsocket.close();
-        //widget.device.espsocket.socket.flush();
-        //widget.device.espsocket.socket.destroy();
-      });
+      widget.device.client.disconnect();
     } else if (state == AppLifecycleState.resumed) {
       // app in foreground
-      connect(context, widget.device);
+      widget.device.client.connect(widget.device.ip, defaultPort, widget.device).then((connected) {
+        if (connected) {
+          widget.device.client.startSendingLoop(context);
+        } else {
+          showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
+        }
+      });
     }
   }
 
@@ -471,24 +487,14 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     child: Icon(Icons.radio_button_checked, color: Color.alphaBlend(Colors.black.withAlpha(220), color))  // Theme.of(context).colorScheme.primary
                     ),
                     onTap: () async {
-                      bool notBusy = await waitBusy(widget.device);
-                      if (!notBusy) {
-                        showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
-                        return;
-                      }
-
-                      bool stopped = await stopUpdate(widget.device);
-                      if (!stopped) {
-                        showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
-                        return;
-                      }
+                      await widget.device.client.stopSendingLoop();
 
                       String statusCode = await widget.device.openCloseValve(switchId);
                       if (statusCode != "200 OK") {
                         showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                       }
 
-                      startUpdate(context, widget.device);
+                      widget.device.client.startSendingLoop(context);
                     },
                 ),
               ),
@@ -583,24 +589,14 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   if (dataToSend == "") {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   } else {
-                    bool notBusy = await waitBusy(widget.device);
-                    if (!notBusy) {
-                      showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
-                      return;
-                    }
+                    await widget.device.client.stopSendingLoop();
 
-                    bool stopped = await stopUpdate(widget.device);
-                    if (!stopped) {
-                      showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
-                      return;
-                    }
-
-                    String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
+                    String statusCode = await widget.device.client.sendData(dataToSend);
                     if (statusCode != "200 OK") {
                       showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                     }
 
-                    startUpdate(context, widget.device);
+                    widget.device.client.startSendingLoop(context);
                   }
                 }
               ),
@@ -647,38 +643,28 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             ),
             child: Text(buttonText),
             onPressed: () async {
-              bool notBusy = await waitBusy(widget.device);
-              if (!notBusy) {
-                showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
-                return;
-              }
-
-              bool stopped = await stopUpdate(widget.device);
-              if (!stopped) {
-                showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
-                return;
-              }
+              await widget.device.client.stopSendingLoop();
 
               if (dataToSend.startsWith("send")) {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
-                String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout("$template${textInputController.text}");
+                String statusCode = await widget.device.client.sendData("$template${textInputController.text}");
                 if (statusCode.split("\n")[0] != "200 OK") {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
                 textInputController.clear();
-                startUpdate(context, widget.device);
+                widget.device.client.startSendingLoop(context);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
-                  String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
+                  String statusCode = await widget.device.client.sendData(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
-                  startUpdate(context, widget.device);
+                  widget.device.client.startSendingLoop(context);
                 }
               }
             }
@@ -727,8 +713,8 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     int timePickerId = int.parse(feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1]);
     String dataToSend = feature.split(dataSeparator)[3];
     List<String> receivedTime = List<String>.filled(2, "00:00");
-    TimeOfDay startTime;
-    TimeOfDay endTime;
+    TimeOfDay startTime = TimeOfDay.now();
+    TimeOfDay endTime = TimeOfDay.now();
     String timePickerReceivedData;
     if (feature.contains(",")) {
       timePickerReceivedData = feature.split(",")[0].split(dataSeparator)[1];
@@ -748,18 +734,19 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       timePickerData.add(receivedTime);
     }
 
-    if (receivedTime.length < 2) {
-      startTime = TimeOfDay.now();
-      endTime = TimeOfDay.now();
-    } else {
-      startTime = TimeOfDay(
-      hour: int.parse(receivedTime[0].split(":")[0]),
-      minute: int.parse(receivedTime[0].split(":")[1]),
-      );
-      endTime = TimeOfDay(
-      hour: int.parse(receivedTime[1].split(":")[0]),
-      minute: int.parse(receivedTime[1].split(":")[1]),
-      );
+    try {
+      if (receivedTime.length >= 2) {
+        startTime = TimeOfDay(
+          hour: int.parse(receivedTime[0].split(":")[0]),
+          minute: int.parse(receivedTime[0].split(":")[1]),
+        );
+        endTime = TimeOfDay(
+          hour: int.parse(receivedTime[1].split(":")[0]),
+          minute: int.parse(receivedTime[1].split(":")[1]),
+        );
+      }
+    } catch (e) {
+      debug.log("Invalid time format: $e");
     }
 
     for (String addon in feature.split(","))
@@ -777,38 +764,28 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             ),
             child: Text(buttonText),
             onPressed: () async {
-              bool notBusy = await waitBusy(widget.device);
-              if (!notBusy) {
-                showPopupOK(context, "device.error_text".tr(), "device.device_still_busy".tr());
-                return;
-              }
-
-              bool stopped = await stopUpdate(widget.device);
-              if (!stopped) {
-                showPopupOK(context, "device.error_text".tr(), "device.values_update_timeout".tr());
-                return;
-              }
+              await widget.device.client.stopSendingLoop();
 
               if (dataToSend.startsWith("send")) {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
                 String timeToSend = "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}-${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}";
-                String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout("$template$timeToSend");
+                String statusCode = await widget.device.client.sendData("$template$timeToSend");
                 if (statusCode.split("\n")[0] != "200 OK") {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
-                startUpdate(context, widget.device);
+                widget.device.client.startSendingLoop(context);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
-                  String statusCode = await widget.device.espsocket.sendAndWaitForAnswerTimeout(dataToSend);
+                  String statusCode = await widget.device.client.sendData(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
-                  startUpdate(context, widget.device);
+                  widget.device.client.startSendingLoop(context);
                 }
               }
             }
@@ -887,10 +864,36 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     );
   }
 
+  void _addExternalFeature() async
+  {
+    if (externalFeaturesWidgets.isEmpty) {
+      for (String rawFeature in rawExternalFeatures.split("\n")) {
+        rawFeature.replaceAll(";", "");
+        int externalFeatureID = int.parse(rawFeature.split(dataSeparator)[1]);
+        createExternalFeature(externalFeatureID);
+      }
+    }
+
+    externalFeaturesWidgets.clear();
+    
+    // external1$externalFeatureID$updateOnce;
+
+    int index = 0;
+    for (String rawFeature in rawExternalFeatures.split("\n")) {
+      rawFeature.replaceAll(";", "");
+      int externalFeatureID = int.parse(rawFeature.split(dataSeparator)[1]);
+
+      externalFeaturesWidgets.addAll(await getExternalFeature(widget.device.ip, externalFeatureID, index, context, addExternalFeaturesListener));
+      index++;
+    }
+
+    updateExternalFeaturesListener.value = !updateExternalFeaturesListener.value;
+  }
+
   List<Widget> _generateDirectUserIOs(Device device)
   {
     List<Widget> widgetList = List.empty(growable: true);
-    
+
     for (String feature in device.features)
     {
       /**
@@ -899,7 +902,13 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
        * timestamp1:Tempo CPU:123 ms;
        */
 
-      if (feature.startsWith("switch")) {
+      if (feature.startsWith("external")) {
+        //_addExternalFeature(feature);
+        if (!rawExternalFeaturesAdded) {
+          // external features changes are not supported!
+          rawExternalFeatures += feature;
+        }
+      } else if (feature.startsWith("switch")) {
         widgetList.add(_addSwitchFeature(feature));
       } else if (feature.startsWith("timestamp")) {
         widgetList.add(_addTimestampFeature(feature));
@@ -914,9 +923,16 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       }
     }
 
+    if (!rawExternalFeaturesAdded && rawExternalFeatures != "") {
+      rawExternalFeaturesAdded = true;
+      addExternalFeaturesListener.value = !addExternalFeaturesListener.value;
+    } else {
+      updateExternalFeaturesListener.value = !updateExternalFeaturesListener.value;
+    }
+
     return widgetList;
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -930,48 +946,16 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
               );
             }
           ),
+          ValueListenableBuilder(
+            valueListenable: updateExternalFeaturesListener,
+            builder: (context, value, _) {
+              return Column(
+                 children: [...externalFeaturesWidgets]
+              );
+            }
+          ),
         ]
       )
     );
   }
-}
-
-DateTime lastUpdateTime = DateTime.now().subtract(const Duration(seconds: 10));
-
-void updateDirectUserIOs(BuildContext context, Device dev) async {
-  if (exit) return;
-
-  final start = DateTime.now();
-
-  final updateTimeDiff = DateTime.now().difference(lastUpdateTime).inMilliseconds;
-  if (updateTimeDiff < updateTime && !firstRun) {
-    exit = true;
-    return;
-    // if the time it took to update is less than the required update time, it means there is another
-    // thread executing this function, so stop this one
-  }
-  lastUpdateTime = DateTime.now();
-
-  bool notBusy = await waitBusy(dev);
-  if (notBusy) {
-    dev.updatingValues = true;
-    //await Future.delayed(const Duration(milliseconds: 5));
-    await dev.getAndShowNotification(context, forceShowNotification);
-    forceShowNotification = false;
-    await dev.getFeatures();
-    generateIOs.value = !generateIOs.value;
-  }
-
-  final elapsed = DateTime.now().difference(start).inMilliseconds;
-  if (elapsed < updateTime) {
-    await Future.delayed(Duration(milliseconds: updateTime - elapsed));
-  }
-
-  if (!update) {
-    exit = true;
-    return;
-  }
-  dev.updatingValues = false;
-
-  updateDirectUserIOs(context, dev);
 }

@@ -82,19 +82,18 @@ class _HomePageState extends State<HomePage> {
       List<String> ipsAndIds = List.empty(growable: true);
       for (Device dev in deviceList) {
         cardList.add(_createDeviceTile(dev, context));
+        cardList.add(
+          const Padding(padding: EdgeInsets.only(top: 8.0))
+        );
         ipsAndIds.add("${dev.ip};${dev.id}");
       }
 
       if (cardList.isNotEmpty) {
-        cardList.add(
-          const Padding(padding: EdgeInsets.only(top: 8.0))
-        );
-
         // list update button
         cardList.add(
         ListTile(
             title: ElevatedButton(
-              child: Text(context.tr("update_list_text")),
+              child: Text(context.tr("update_text")),
               onPressed: () {
                 setState(() {
                   _updateExistingIDs = true;
@@ -162,7 +161,7 @@ class _HomePageState extends State<HomePage> {
           } else {
             device.changeName(context).then((value) {
               setState(() {
-                //_updateExistingIDs = true;
+                _updateExistingIDs = true;
                 _createDeviceList();
               });
             });
