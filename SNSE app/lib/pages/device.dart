@@ -11,12 +11,9 @@ import 'package:easy_localization/easy_localization.dart';
 import '../externalfeatures.dart';
 import 'dart:convert';
 
-import '../discovery.dart';
 import '../tiles/tiles.dart';
 import 'settings.dart';
 
-const int updateTime = 250; // ms
-const int maxTimeouts = 5;
 bool update = true;
 bool forceShowNotification = false;
 
@@ -43,12 +40,9 @@ class TcpClient {
   bool _sendingLoopActive = false;
 
   int _lastNotificationID = 0;
-
   Device? linkedDevice;
-
   bool _stopRequested = false;
   Completer<void>? _loopCompleter;
-
 
   Future<void> connectAndStartLoop(String host, int port, Device? dev, BuildContext context) async {
     bool connected = await connect(host, port, dev);
@@ -65,7 +59,7 @@ class TcpClient {
     try {
       _socket = await Socket.connect(host, port);
       _socket!.listen(_onData, onError: _onError, onDone: _onDone);
-      debug.log("Connected to da");
+      debug.log("Connected to $host");
       return true;
     } catch (e) {
       debug.log('Connection failed: $e');
@@ -117,9 +111,9 @@ class TcpClient {
       _responseQueue.add(completer);
       _socket!.write(data);
 
-      return await completer.future.timeout(Duration(milliseconds: timeout), onTimeout: () {
+      return await completer.future.timeout(Duration(milliseconds: savedSettings.getUpdateTime()), onTimeout: () {
         _responseQueue.remove(completer);
-        debug.log('No response within $timeout ms. Request: $data');
+        debug.log('No response within ${savedSettings.getUpdateTime()} ms. Request: $data');
         return ""; // Return empty string on timeout
       });
     });
@@ -142,18 +136,28 @@ class TcpClient {
 
   Future<void> _loop(BuildContext context) async {
     while (!_stopRequested) {
+      final start = DateTime.now();
+
       try {
         final notification = await sendData("GET ?notification\n");
         handleNotification(notification, context);
 
-        final features = await sendData("GET ?features\n");
-        linkedDevice!.features = features.split("\n")[1].split(";");
+        String features = linkedDevice!.features.join(";");
+        String newFeatures = await sendData("GET ?features\n");
+        // newFeatures.toLowerCase().contains("vuoto") means notification data
+        if (newFeatures.contains("200 OK") && !newFeatures.toLowerCase().contains("vuoto")) {
+          features = newFeatures;
+        }
+        linkedDevice!.features = features.replaceAll("200 OK\n", "").split(";");
         generateIOs.value = !generateIOs.value;
       } catch (e) {
         debug.log('Error during periodic send: $e');
       }
 
-      await Future.delayed(const Duration(milliseconds: updateTime));
+      final elapsed = DateTime.now().difference(start).inMilliseconds;
+      if (elapsed < savedSettings.getUpdateTime()) {
+        await Future.delayed(Duration(milliseconds: savedSettings.getUpdateTime() - elapsed));
+      }
     }
 
     _sendingLoopActive = false;
@@ -928,6 +932,11 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       addExternalFeaturesListener.value = !addExternalFeaturesListener.value;
     } else {
       updateExternalFeaturesListener.value = !updateExternalFeaturesListener.value;
+    }
+
+    if (widgetList.isEmpty)
+    {
+      return List.empty(growable: false);
     }
 
     return widgetList;

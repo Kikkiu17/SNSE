@@ -1,0 +1,81 @@
+{
+    "this_language": "Italiano",
+    "devices_text": "Dispositivi",
+    "settings_text": "Impostazioni",
+    "list_text": "Lista",
+    "update_text": "Aggiorna",
+    "no_device_selected": "Nessun dispositivo selezionato",
+    "no_device_found": "Nessun dispositivo trovato",
+    "discover_devices_text": "Trova nuovi dispositivi",
+    "loading_text": "Caricamento...",
+    "settings": {
+        "wifi_info": {
+            "title": "Informazioni WiFi",
+            "current_ip": "IP di questo dispositivo: {}",
+            "gateway": "Gateway: {}",
+            "subnet_mask": "Subnet mask: {}",
+            "port": "Porta dispositivi SNSE: {}",
+            "ext_server_ip_port": "Porta server esterno: {}"
+        },
+        "connection": {
+            "title": "Connessione",
+            "ext_server_ip": "IP server esterno",
+            "ext_server_ip_description": "Usato per ottenere le caratteristiche esterne (come grafici)",
+            "update_period": "Periodo di aggiornamento",
+            "update_period_description": "Specifica ogni quanto tempo aggiornare la lista di caratteristiche"
+        },
+        "device_discovery": {
+            "title": "Ricerca Dispositivi",
+            "max_ip": "Massimo IP per la ricerca",
+            "max_ip_description": "Verranno scansionati tutti gli IP a partire dal gateway fino all'IP specificato",
+            "timeout": "Timeout di ricerca",
+            "timeout_description": "Timeout di ogni dispositivo scansionato. Se il dispositivo non risponde entro il timeout inserito (in millisecondi), si passa al prossimo"
+        },
+        "interface": {
+            "title": "Interfaccia",
+            "language_text": "Lingua",
+            "theme": {
+                "title": "Tema",
+                "dark_mode": "Scuro",
+                "light_mode": "Chiaro",
+                "system": "Sistema"
+            }
+        },
+        "restore_to_default": "Ripristina a default"
+    },
+    "device": {
+        "change_name_dialog_title": "Cambia nome",
+        "change_name_dialog_hint": "Modifica il nome del dispositivo",
+        "notification": "Notifica",
+        "no_notif_dialog_title": "Nessuna nuova notifica",
+        "no_notif_dialog_content": "Non ci sono notifiche",
+        "retry_text": "Riprova",
+        "cant_send_command": "Impossibile inviare il comando:\n{}",
+        "success_text": "Successo",
+        "error_text": "Errore",
+        "change_name_success": "Nome modificato con successo",
+        "change_name_error": "Impossibile modificare il nome del dispositivo. Riprova",
+        "no_content_sent": "Nessun contenuto inviato",
+        "device_still_busy": "Il dispositivo è ancora occupato",
+        "values_update_timeout": "Timeout durante l'aggiornamento dei valori",
+        "external_feature_no_connection": "Impossibile connettersi a {}",
+        "time_interval": "Intervallo di tempo",
+        "value": "Valore",
+        "day": "Giorno",
+        "month": "Mese",
+        "year": "Anno",
+        "jan": "Gennaio",
+        "feb": "Febbraio",
+        "mar": "Marzo",
+        "apr": "Aprile",
+        "may": "Maggio",
+        "jun": "Giugno",
+        "jul": "Luglio",
+        "aug": "Agosto",
+        "sep": "Settembre",
+        "oct": "Ottobre",
+        "nov": "Novembre",
+        "dec": "Dicembre",
+        "update_graph_text": "Aggiorna grafico"
+    }
+}

@@ -5,7 +5,6 @@ import 'package:network_info_plus/network_info_plus.dart';
 import 'pages/settings.dart';
 
 const String idTemplate = "ESPDEVICE";
-int timeout = 250; // ms
 
 Future<Device> createDevice(String ip, TcpClient client) async
 {
@@ -69,8 +68,6 @@ Future<List<Device>> discoverDevices(List<String> ips) async
   {
     // ip;id
     ip = ip.split(";")[0];
-
-    print("NIGGA: $ip");
 
     TcpClient client = TcpClient();
     bool connected = await client.connect(ip, defaultPort, null);

@@ -12,15 +12,16 @@ import '../languages.dart';
 
 const String dataSeparator = "\$";
 
-int gatewayIpLast = 0;
-String readableMaxIp = "";
-bool darkModeSetByUser = false;
-String _themeValue = "light";
-
 const int defaultPort = 34677; // default port for ESP devices
 
 String extServerIP = "";
 const int extServerPort = 34678;
+
+int gatewayIpLast = 0;
+String readableMaxIp = "";
+bool darkModeSetByUser = false;
+String _themeValue = "sys";
+
 
 // Helper encode/decode functions:
 String encode(Map<String, dynamic> map) => jsonEncode(map);
@@ -32,6 +33,7 @@ class DefaultSavedSettings {
   final int scanTimeout = 30; // ms
   final bool isThemeSystem = true;
   final String extServerIP = "127.0.0.1";
+  final int updateTime = 250; // ms
 }
 
 class SavedSettings {
@@ -40,6 +42,7 @@ class SavedSettings {
   static int _scanTimeout = DefaultSavedSettings().scanTimeout;
   static bool _isThemeSystem = DefaultSavedSettings().isThemeSystem;
   static String _extServerIP = DefaultSavedSettings().extServerIP;
+  static int _updateTime = DefaultSavedSettings().updateTime;
 
   Map<String, dynamic> toMap() {
     return {
@@ -47,7 +50,8 @@ class SavedSettings {
       'darkMode': _darkMode,
       'scanTimeout': _scanTimeout,
       'isThemeSystem': _isThemeSystem,
-      'extServerIP': _extServerIP
+      'extServerIP': _extServerIP,
+      'updateTime': _updateTime
     };
   }
 
@@ -57,6 +61,7 @@ class SavedSettings {
     _scanTimeout = DefaultSavedSettings().scanTimeout;
     _isThemeSystem = DefaultSavedSettings().isThemeSystem;
     _extServerIP = DefaultSavedSettings().extServerIP;
+    _updateTime = DefaultSavedSettings().updateTime;
     //_locale = DefaultSavedSettings().locale;
     if (context != null) {
       context.resetLocale();
@@ -69,6 +74,7 @@ class SavedSettings {
     _scanTimeout = map['scanTimeout'];
     _isThemeSystem = map['isThemeSystem'];
     _extServerIP = map['extServerIP'];
+    _updateTime = map['updateTime'];
   }
 
   Future<void> save() async {
@@ -113,6 +119,14 @@ class SavedSettings {
 
   void setScanTimeout(int value) {
     _scanTimeout = value;
+  }
+
+  int getUpdateTime() {
+    return _updateTime;
+  }
+
+  void setUpdateTime(int value) {
+    _updateTime = value;
   }
 
   bool isThemeSystem() {
@@ -253,7 +267,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       body: ListView(
         children: [
           ListTile(
-            title: Text('settings.connection_info.title'.tr()),
+            title: Text('settings.wifi_info.title'.tr()),
             tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
               //side: const BorderSide(width: 0.8),
@@ -264,32 +278,12 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("settings.connection_info.current_ip".tr(args: [_wifiIPv4 ?? 'N/A'])),
-                Text("settings.connection_info.gateway".tr(args: [_wifiGatewayIP ?? 'N/A'])),
-                Text("settings.connection_info.subnet_mask".tr(args: [_wifiSubmask ?? 'N/A'])),
-                Text("settings.connection_info.port".tr(args: [defaultPort.toString()])),
-                Text("settings.connection_info.ext_server_ip_port".tr(args: [extServerPort.toString()])),
+                Text("settings.wifi_info.current_ip".tr(args: [_wifiIPv4 ?? 'N/A'])),
+                Text("settings.wifi_info.gateway".tr(args: [_wifiGatewayIP ?? 'N/A'])),
+                Text("settings.wifi_info.subnet_mask".tr(args: [_wifiSubmask ?? 'N/A'])),
+                Text("settings.wifi_info.port".tr(args: [defaultPort.toString()])),
+                Text("settings.wifi_info.ext_server_ip_port".tr(args: [extServerPort.toString()])),
               ],
-            ),
-          ),
-          ListTile(
-            title: Text("settings.connection_info.ext_server_ip".tr()),
-            subtitle: Text("settings.connection_info.ext_server_ip_description".tr()),
-            trailing: SizedBox(
-              width: 140,
-              height: 25,
-              child: TextField(
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.only(bottom: 1),
-                  hintText: extServerIP,
-                  border: const OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  extServerIP = value;
-                },
-              ),
             ),
           ),
           ListTile(
@@ -302,7 +296,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           ),
           ListTile(
             title: Text("settings.device_discovery.max_ip".tr()),
-            subtitle: Text("settings.device_discovery.max_ip_description".tr()),
+            subtitle: Text("settings.device_discovery.max_ip_description".tr(), textAlign: TextAlign.justify),
             trailing: SizedBox(
               width: 140,
               height: 25,
@@ -322,19 +316,66 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           ),
           ListTile(
             title: Text("settings.device_discovery.timeout".tr()),
-            subtitle: Text("settings.device_discovery.timeout_description".tr()),
+            subtitle: Text("settings.device_discovery.timeout_description".tr(), textAlign: TextAlign.justify),
             trailing: SizedBox(
-              width: 50,
+              width: 90,
               child: TextField(
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
-                  hintText: "${savedSettings.getScanTimeout().toString()} ms",
+                  hintText: "${savedSettings.getScanTimeout()} ms",
                   isDense: true,
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (value) {
                   savedSettings.setScanTimeout(int.tryParse(value) ?? savedSettings.getScanTimeout());
+                },
+              ),
+            ),
+          ),
+          ListTile(
+            title: Text("settings.connection.title".tr()),
+            tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                  shape: RoundedRectangleBorder(
+              //side: const BorderSide(width: 0.8),
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          ListTile(
+            title: Text("settings.connection.ext_server_ip".tr()),
+            subtitle: Text("settings.connection.ext_server_ip_description".tr(), textAlign: TextAlign.justify),
+            trailing: SizedBox(
+              width: 140,
+              height: 25,
+              child: TextField(
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.only(bottom: 1),
+                  hintText: extServerIP,
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  extServerIP = value;
+                },
+              ),
+            ),
+          ),
+          ListTile(
+            title: Text("settings.connection.update_period".tr()),
+            subtitle: Text("settings.connection.update_period_description".tr(), textAlign: TextAlign.justify),
+            trailing: SizedBox(
+              width: 90,
+              child: TextField(
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  hintText: "${savedSettings.getUpdateTime()} ms",
+                  isDense: true,
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  savedSettings.setUpdateTime(int.tryParse(value) ?? savedSettings.getUpdateTime());
                 },
               ),
             ),
