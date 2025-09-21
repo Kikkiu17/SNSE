@@ -322,17 +322,14 @@ class Device {
     return DevicePage(device: this);
   }
 
-  // FUNZIONI PERSONALIZZATE PER L'APPLICAZIONE SPECIFICA
-  // FUNZIONI PULSANTE
-  Future<String> openCloseValve(String id) async {
-    //await espsocket.flush();
-    String resp = await client.sendData("GET ?valve=$id");
+  Future<String> pressUnpressSwitch(String id) async {
+    String resp = await client.sendData("GET ?switch=$id");
     if (resp.contains("200 OK")) {
-      String isOpen = resp.split("\n")[1];
-      if (isOpen == "aperta") {
-        client.sendData("POST ?valve=$id&cmd=close");
-      } else if (isOpen == "chiusa") {
-        client.sendData("POST ?valve=$id&cmd=open");
+      String isPressed = resp.split("\n")[1];
+      if (isPressed == "1") {
+        client.sendData("POST ?switch=$id&cmd=0");
+      } else if (isPressed == "0") {
+        client.sendData("POST ?switch=$id&cmd=1");
       }
     }
 
@@ -493,10 +490,15 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     onTap: () async {
                       await widget.device.client.stopSendingLoop();
 
-                      String statusCode = await widget.device.openCloseValve(switchId);
+                      String statusCode = await widget.device.pressUnpressSwitch(switchId);
                       if (statusCode != "200 OK") {
                         showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                       }
+
+                      /*String statusCode = await widget.device.openCloseValve(switchId);
+                      if (statusCode != "200 OK") {
+                        showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
+                      }*/
 
                       widget.device.client.startSendingLoop(context);
                     },

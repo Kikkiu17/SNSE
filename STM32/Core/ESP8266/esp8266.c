@@ -568,6 +568,7 @@ Response_t WIFI_ReceiveRequest(WIFI_t* wifi, Connection_t* conn, uint32_t timeou
 Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, uint32_t body_length)
 {
 	if (conn == NULL || status_code == NULL || body == NULL) return NULVAL;
+	if (body_length > RESPONSE_MAX_SIZE) return ERR;
 	Response_t atstatus = ERR;
 
 	// calculate width in characters of the body length and connection number
@@ -597,6 +598,9 @@ Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, 
 		if (ESP8266_WaitForString("SEND OK", 100) == TIMEOUT) return ERR;
 		if (ESP8266_WaitForString(">", 100) == TIMEOUT) return ERR;
 	}
+
+	if (body_length < RESPONSE_MAX_SIZE)
+		body[body_length] = '\0';
 
 	memset(conn->response_buffer, 0, RESPONSE_MAX_SIZE);
 	sprintf(conn->response_buffer, "%s\n%s\r\n", status_code, body);
@@ -851,7 +855,7 @@ char* WIFI_GetKeyValue(Connection_t* conn, char* request_key_ptr, uint32_t* valu
 		if (value_size != NULL)
 		{
 			if (parameter_end_ptr != NULL)
-				*value_size = parameter_end_ptr - key_end_ptr + 1;
+				*value_size = parameter_end_ptr - (key_end_ptr + 1);
 			else
 			{
 				uint32_t str_len = strlen(request_key_ptr);

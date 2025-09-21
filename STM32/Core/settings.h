@@ -8,6 +8,9 @@
 #ifndef SETTINGS_H_
 #define SETTINGS_H_
 
+#include <inttypes.h>
+#include "stm32g0xx.h"
+
 typedef uint8_t bool;
 #define true 1
 #define false 0
@@ -130,6 +133,22 @@ extern SaveData_t savedata;
 
 #define START_ATTEMPTS 4
 
+typedef struct
+{
+	bool pressed;
+	bool inverted;
+	GPIO_TypeDef* port;
+	uint16_t pin;
+	bool manual;
+} Switch_t;
+
+#define NUMBER_OF_SWITCHES 1
+
+// define here all the switches indexes. first index must be 0, last must be NUMBER_OF_SWITCHES - 1
+#define SW0 0
+
+extern Switch_t switches[NUMBER_OF_SWITCHES];
+
 // ==========================================================================================
 // 										COMM TEMPLATE
 // ==========================================================================================
@@ -171,9 +190,8 @@ extern SaveData_t savedata;
 
 static const char FEATURES_TEMPLATE[] =
 {
-		"sensor1$S1$%d;"
-		"sensor2$S2$%d;"
-		"sensor3$S3$%d;"
+		"sensor1$Sensor name$%d;"
+		"switch1$Switch name,status$%d;"
 };
 
 #endif /* SETTINGS_H_ */

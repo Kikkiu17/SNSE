@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "../ESP8266/esp8266.h"
+#include "../wifihandler/wifihandler.h"
 #include "../credentials.h"
 #include <string.h>
 #include <stdio.h>
@@ -109,6 +110,7 @@ int main(void)
 
   WIFI_StartServer(&wifi, SERVER_PORT);
 
+  SWITCH_Init(&(switches[SW0]), false, GPIOA, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -119,6 +121,11 @@ int main(void)
 	  if (status == OK)
 	  {
 		  char* key_ptr = NULL;
+
+      if ((key_ptr = WIFI_RequestHasKey(&conn, "wifi")))
+			  WIFIHANDLER_HandleWiFiRequest(&conn, key_ptr);
+		  else if ((key_ptr = WIFI_RequestHasKey(&conn, "switch")))
+			  WIFIHANDLER_HandleSwitchRequest(&conn, key_ptr);
 
 		  if ((key_ptr = WIFI_RequestHasKey(&conn, "time")))
 		  {
@@ -133,21 +140,15 @@ int main(void)
 		  }
 	  }
 	  // OPTIONAL
-	  else if (status != TIMEOUT)
+	  else if (wifistatus != TIMEOUT)
 	  {
-		  sprintf(wifi.buf, "Status: %d", status);
+		  sprintf(wifi.buf, "Status: %d", wifistatus);
 		  WIFI_ResetComm(&wifi, &conn);
 		  WIFI_SendResponse(&conn, "500 Internal server error", wifi.buf, strlen(wifi.buf));
 	  }
 
 	  // OPTIONAL
-	  if (!WIFI_response_sent)
-	  {
-		  if (status == WAITING || status == ERR || status == NULVAL)
-			  WIFI_ResetComm(&wifi, &conn);
-	  }
-	  else
-		  WIFI_response_sent = false;
+	  WIFI_ResetConnectionIfError(&wifi, &conn, wifistatus);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

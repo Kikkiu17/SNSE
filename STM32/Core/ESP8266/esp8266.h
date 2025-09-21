@@ -12,10 +12,6 @@
 #include "usart.h"
 #include "../settings.h"
 
-typedef uint8_t bool;
-#define true 1
-#define false 0
-
 extern bool WIFI_response_sent;
 
 typedef enum
@@ -98,5 +94,6 @@ char* WIFI_RequestKeyHasValue(Connection_t* conn, char* request_key_ptr, char* v
 char* WIFI_GetKeyValue(Connection_t* conn, char* request_key_ptr, uint32_t* value_size);
 Response_t WIFI_StartServer(WIFI_t* wifi, uint16_t port);
 Response_t ESP8266_ResetWaitReady();
+void WIFI_ResetConnectionIfError(WIFI_t* wifi, Connection_t* conn, Response_t wifistatus);
 
 #endif /* ESP8266_ESP8266_H_ */
