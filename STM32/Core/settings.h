@@ -131,7 +131,7 @@ extern SaveData_t savedata;
 // 											OTHER
 // ==========================================================================================
 
-#define START_ATTEMPTS 4
+#define START_ATTEMPTS -1
 
 typedef struct
 {
@@ -144,10 +144,9 @@ typedef struct
 
 #define NUMBER_OF_SWITCHES 1
 
-// define here all the switches indexes. first index must be 0, last must be NUMBER_OF_SWITCHES - 1
-#define SW0 0
+#define RELAY_SWITCH 0
 
-extern Switch_t switches[NUMBER_OF_SWITCHES];
+extern Switch_t switches[1];
 
 // ==========================================================================================
 // 										COMM TEMPLATE
@@ -188,10 +187,20 @@ extern Switch_t switches[NUMBER_OF_SWITCHES];
  * 		NOTE: external features will only be updated ONCE, every time the device is loaded in the app.
  */
 
+typedef struct bat
+{
+	uint16_t voltage_mv;
+	uint16_t voltage_integer;
+	uint16_t voltage_decimal;
+
+} Battery_t;
+
+extern Battery_t bat;
+
 static const char FEATURES_TEMPLATE[] =
 {
-		"sensor1$Sensor name$%d;"
-		"switch1$Switch name,status$%d;"
+		"switch1$Luce,status$%d;"
+		"sensor1$Tensione alimentazione$%d,%dV;"
 };
 
 #endif /* SETTINGS_H_ */

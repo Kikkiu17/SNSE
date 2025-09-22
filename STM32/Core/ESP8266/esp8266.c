@@ -6,7 +6,6 @@
  */
 
 #include "esp8266.h"
-#include "../Flash/flash.h"
 #include <string.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -199,7 +198,7 @@ Response_t ESP8266_ResetWaitReady(void)
 	Response_t start_ok = ERR;
 	while (start_ok != OK)
 	{
-		if (attempt_number > START_ATTEMPTS)
+		if (START_ATTEMPTS != -1 && attempt_number > START_ATTEMPTS)
 			return TIMEOUT;
 		attempt_number++;
 		// hardware reset
