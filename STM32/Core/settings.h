@@ -172,6 +172,7 @@ extern Switch_t switches[1];
  * FEATURE				SYNTAX												OPTIONAL SYNTAX
  * sensor				sensorX$text$%d text
  * switch				switchX$text,status$%d								switchX$switch_name,status$%d,sensor$sensor_name$%d
+ *		status has to be 0 or 1, according to the switch state
  * textinut				textinputX$default_text								textinputX$txt_name,button$btn_name$send<command> (without a space)
  * 		text inside the textinput field will be appended at the end of the command to be sent
  * timepicker			timepicker$%s (time data, should be hh:mm-hh:mm)	timepicker$%s,button$btn_name$send<command>
@@ -184,7 +185,7 @@ extern Switch_t switches[1];
  * 		external features:
  * 		1 = GRAPH
  *
- * 		NOTE: external features will only be updated ONCE, every time the device is loaded in the app.
+ * 		NOTE: external features will only be updated ONCE, every time the device is loaded in the app. The user can manually refresh the data.
  */
 
 typedef struct bat

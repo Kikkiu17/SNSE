@@ -173,7 +173,8 @@ Response_t WIFIHANDLER_HandleFeaturePacket(Connection_t* conn, char* features_te
 	memset(conn->wifi->buf, 0, WIFI_BUF_MAX_SIZE);
 	sprintf(conn->wifi->buf, features_template,
 			switches[0].pressed,
-			bat.voltage_integer, bat.voltage_decimal);
+			bat.voltage_integer, bat.voltage_decimal
+	);
 	return WIFI_SendResponse(conn, "200 OK", conn->wifi->buf, strlen(conn->wifi->buf));
 }
 
