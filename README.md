@@ -8,7 +8,7 @@ You can access this page from the settings. It's used for debug purposes: you ca
 ### Settings
 There are multiple settings to adapt to your use case. You can change the number of devicees searched, the update interval, the external server IP or the search timeout. Currently, the supported languages are: Italian, English, Spanish, French, German
 
-<img src="pictures/homepage.png" height="500"/><img src="pictures/graph.png" height="500"/><img src="pictures/buttons.png" height="500"/><img src="pictures/notification.png" height="500"/><img src="pictures/socket_comm.png" height="500"/><img src="pictures/settingspage.jpg" height="500"/>
+<img src="pictures/homepage.png" height="500"/> <img src="pictures/graph.png" height="500"/> <img src="pictures/buttons.png" height="500"/> <img src="pictures/notification.png" height="500"/> <img src="pictures/socket_comm.png" height="500"/> <img src="pictures/settingspage.jpg" height="500"/>
 
 # How it works
 ## STM32-ESP board
