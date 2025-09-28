@@ -73,6 +73,7 @@ class TcpClient {
 
   void _onData(Uint8List data) {
     _buffer += utf8.decode(data);
+    debug.log("Received data: $_buffer");
 
     while (_buffer.contains("\r\n")) {
       final index = _buffer.indexOf("\r\n");
@@ -111,9 +112,9 @@ class TcpClient {
       _responseQueue.add(completer);
       _socket!.write(data);
 
-      return await completer.future.timeout(Duration(milliseconds: savedSettings.getUpdateTime()), onTimeout: () {
+      return await completer.future.timeout(const Duration(milliseconds: extServerTimeout), onTimeout: () {
         _responseQueue.remove(completer);
-        debug.log('No response within ${savedSettings.getUpdateTime()} ms. Request: $data');
+        debug.log('No response within $extServerTimeout ms. Request: $data');
         return ""; // Return empty string on timeout
       });
     });

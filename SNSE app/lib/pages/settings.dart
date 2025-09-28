@@ -16,12 +16,12 @@ const int defaultPort = 34677; // default port for ESP devices
 
 String extServerIP = "";
 const int extServerPort = 34678;
+const int extServerTimeout = 2500; // ms
 
 int gatewayIpLast = 0;
 String readableMaxIp = "";
 bool darkModeSetByUser = false;
 String _themeValue = "sys";
-
 
 // Helper encode/decode functions:
 String encode(Map<String, dynamic> map) => jsonEncode(map);
@@ -301,11 +301,11 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
               width: 140,
               height: 25,
               child: TextField(
+                controller: TextEditingController(text: readableMaxIp),
                 textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.only(bottom: 1),
-                  hintText: readableMaxIp,
-                  border: const OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.only(bottom: 1),
+                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
@@ -348,11 +348,11 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
               width: 140,
               height: 25,
               child: TextField(
+                controller: TextEditingController(text: extServerIP),
                 textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.only(bottom: 1),
-                  hintText: extServerIP,
-                  border: const OutlineInputBorder(),
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.only(bottom: 1),
+                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {

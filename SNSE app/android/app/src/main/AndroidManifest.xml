@@ -4,6 +4,7 @@
     <application
         android:label="SNSE"
         android:name="${applicationName}"
+        android:enableOnBackInvokedCallback="false"
         android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"

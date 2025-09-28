@@ -10,6 +10,7 @@ import 'pages/settings.dart';
 
 List<dynamic> features = List.empty(growable: true);
 
+// these are the IDs of the external features - add new ones as needed
 const int chart = 1;
 
 const List<String> remoteTimeframes = [

@@ -1,6 +1,8 @@
 {
     "this_language": "English",
+    "device_text": "Device",
     "devices_text": "Devices",
+    "socket_text": "Socket",
     "settings_text": "Settings",
     "list_text": "List",
     "update_text": "Update",
@@ -8,6 +10,17 @@
     "no_device_found": "No device found",
     "discover_devices_text": "Discover new devices",
     "loading_text": "Loading...",
+    "direct_socket": {
+        "device_ip": "Device IP",
+        "device_port": "Device port",
+        "command": "Command",
+        "send": "Send",
+        "connect": "Connect",
+        "disconnect": "Disconnect",
+        "received_data": "Received data",
+        "connected": "Connected",
+        "disconnected": "Disconnected"
+    },
     "settings": {
         "wifi_info": {
             "title": "WiFi Information",
@@ -29,7 +42,7 @@
             "max_ip": "Maximum IP for search",
             "max_ip_description": "All IPs from the gateway to the specified IP will be scanned",
             "timeout": "Search timeout",
-            "timeout_description": "Timeout for each scanned device. If the device doesn't respond within the entered timeout (in milliseconds), it moves to the next"
+            "timeout_description": "Timeout for each scanned device. If the device does not respond within the entered timeout (in milliseconds), it moves to the next"
         },
         "interface": {
             "title": "Interface",
@@ -54,10 +67,10 @@
         "success_text": "Success",
         "error_text": "Error",
         "change_name_success": "Name changed successfully",
-        "change_name_error": "Unable to change device name. Please try again",
+        "change_name_error": "Unable to change device name. Try again",
         "no_content_sent": "No content sent",
         "device_still_busy": "Device is still busy",
-        "values_update_timeout": "Timeout while updating values",
+        "values_update_timeout": "Timeout during value update",
         "external_feature_no_connection": "Unable to connect to {}",
         "time_interval": "Time interval",
         "value": "Value",

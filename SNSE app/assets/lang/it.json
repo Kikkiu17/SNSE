@@ -1,6 +1,8 @@
 {
     "this_language": "Italiano",
+    "device_text": "Dispositivo",
     "devices_text": "Dispositivi",
+    "socket_text": "Socket",
     "settings_text": "Impostazioni",
     "list_text": "Lista",
     "update_text": "Aggiorna",
@@ -8,6 +10,17 @@
     "no_device_found": "Nessun dispositivo trovato",
     "discover_devices_text": "Trova nuovi dispositivi",
     "loading_text": "Caricamento...",
+    "direct_socket": {
+        "device_ip": "IP dispositivo",
+        "device_port": "Porta dispositivo",
+        "command": "Comando",
+        "send": "Invia",
+        "connect": "Connetti",
+        "disconnect": "Disconnetti",
+        "received_data": "Dati ricevuti",
+        "connected": "Connesso",
+        "disconnected": "Disconnesso"
+    },
     "settings": {
         "wifi_info": {
             "title": "Informazioni WiFi",

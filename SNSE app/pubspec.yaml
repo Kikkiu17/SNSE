@@ -47,6 +47,7 @@ dependencies:
     sdk: flutter
   easy_localization: ^3.0.8
   syncfusion_flutter_charts: ^31.1.17
+  back_button_interceptor: ^8.0.4
 
 dev_dependencies:
   flutter_test:

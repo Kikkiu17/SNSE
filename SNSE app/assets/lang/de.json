@@ -1,6 +1,8 @@
 {
     "this_language": "Deutsch",
+    "device_text": "Gerät",
     "devices_text": "Geräte",
+    "socket_text": "Socket",
     "settings_text": "Einstellungen",
     "list_text": "Liste",
     "update_text": "Aktualisieren",
@@ -8,6 +10,17 @@
     "no_device_found": "Kein Gerät gefunden",
     "discover_devices_text": "Neue Geräte finden",
     "loading_text": "Lade...",
+    "direct_socket": {
+        "device_ip": "Geräte-IP",
+        "device_port": "Geräteport",
+        "command": "Befehl",
+        "send": "Senden",
+        "connect": "Verbinden",
+        "disconnect": "Trennen",
+        "received_data": "Empfangene Daten",
+        "connected": "Verbunden",
+        "disconnected": "Getrennt"
+    },
     "settings": {
         "wifi_info": {
             "title": "WiFi-Informationen",
@@ -15,27 +28,27 @@
             "gateway": "Gateway: {}",
             "subnet_mask": "Subnetzmaske: {}",
             "port": "SNSE-Geräteport: {}",
-            "ext_server_ip_port": "Externe Server-Port: {}"
+            "ext_server_ip_port": "Externer Serverport: {}"
         },
         "connection": {
             "title": "Verbindung",
             "ext_server_ip": "Externe Server-IP",
             "ext_server_ip_description": "Wird verwendet, um externe Funktionen zu erhalten (z. B. Diagramme)",
             "update_period": "Aktualisierungsintervall",
-            "update_period_description": "Gibt an, wie oft die Merkmalliste aktualisiert wird"
+            "update_period_description": "Gibt an, wie oft die Funktionsliste aktualisiert wird"
         },
         "device_discovery": {
             "title": "Gerätesuche",
             "max_ip": "Maximale IP für die Suche",
             "max_ip_description": "Alle IPs vom Gateway bis zur angegebenen IP werden gescannt",
-            "timeout": "Such-Timeout",
-            "timeout_description": "Timeout für jedes gescannte Gerät. Wenn das Gerät nicht innerhalb der angegebenen Zeit (in Millisekunden) antwortet, wird zum nächsten gewechselt"
+            "timeout": "Suchzeitlimit",
+            "timeout_description": "Zeitlimit für jedes gescannte Gerät. Wenn das Gerät nicht innerhalb des angegebenen Zeitlimits (in Millisekunden) antwortet, wird zum nächsten gewechselt"
         },
         "interface": {
             "title": "Benutzeroberfläche",
             "language_text": "Sprache",
             "theme": {
-                "title": "Design",
+                "title": "Thema",
                 "dark_mode": "Dunkel",
                 "light_mode": "Hell",
                 "system": "System"
@@ -45,10 +58,10 @@
     },
     "device": {
         "change_name_dialog_title": "Name ändern",
-        "change_name_dialog_hint": "Gerätenamen bearbeiten",
+        "change_name_dialog_hint": "Gerätename bearbeiten",
         "notification": "Benachrichtigung",
-        "no_notif_dialog_title": "Keine neuen Benachrichtigungen",
-        "no_notif_dialog_content": "Es liegen keine Benachrichtigungen vor",
+        "no_notif_dialog_title": "Keine neue Benachrichtigung",
+        "no_notif_dialog_content": "Es gibt keine Benachrichtigungen",
         "retry_text": "Erneut versuchen",
         "cant_send_command": "Befehl konnte nicht gesendet werden:\n{}",
         "success_text": "Erfolg",
@@ -57,7 +70,7 @@
         "change_name_error": "Gerätename konnte nicht geändert werden. Bitte erneut versuchen",
         "no_content_sent": "Kein Inhalt gesendet",
         "device_still_busy": "Gerät ist noch beschäftigt",
-        "values_update_timeout": "Timeout beim Aktualisieren der Werte",
+        "values_update_timeout": "Zeitüberschreitung beim Aktualisieren der Werte",
         "external_feature_no_connection": "Verbindung zu {} nicht möglich",
         "time_interval": "Zeitintervall",
         "value": "Wert",

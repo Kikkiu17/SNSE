@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:snse/pages/directsocket.dart';
+import 'package:back_button_interceptor/back_button_interceptor.dart';
 
 import '../main.dart';
 import 'settings.dart';
@@ -11,10 +13,12 @@ import '../discovery.dart';
 import '../tiles/tiles.dart';
 import '../flashytabbar/flashy_tab_bar2.dart';
 
-const int maxPages = 3;
+const int maxPages = 4;
 const int homePageIndex = 0;
 const int devicePageIndex = 1;
+//const int directSocketPageIndex = 2;
 const int settingsPageIndex = 2;
+const int directSocketPageIndex = 3; // not used in the tab bar
 
 class HomePage extends StatefulWidget
 {
@@ -35,6 +39,7 @@ class _HomePageState extends State<HomePage> {
   static List<Widget> pages = List.filled(maxPages, loadingTile, growable: false);
   static Device _selectedDevice = Device();
   static int _selectedIndex = 0;
+  static int _lastSelectedIndex = 0;
 
   bool darkTheme = false;
   bool firstRun = true;
@@ -42,14 +47,17 @@ class _HomePageState extends State<HomePage> {
 
 @override
   void initState() {
+    super.initState();
     pages[devicePageIndex] = grayTextCenteredTile("no_device_selected".tr());
     pages[settingsPageIndex] = const SettingsPage();
+    pages[directSocketPageIndex] = const DirectSocketPage();
     _createDeviceList();
-    super.initState();
+    BackButtonInterceptor.add(backInterceptor);
   }
 
 @override
   void dispose() {
+    BackButtonInterceptor.remove(backInterceptor);
     super.dispose();
   }
 
@@ -177,12 +185,67 @@ class _HomePageState extends State<HomePage> {
         } else {
           pages[devicePageIndex] = device.setThisDevicePage();
           setState(() {
+            _lastSelectedIndex = homePageIndex;
             _selectedIndex = devicePageIndex; // actually switch to the device page
             _selectedDevice = device;
           });
         }
       },
     );
+  }
+
+  Widget getActionButton() {
+    if (_selectedIndex == devicePageIndex && _selectedDevice.name != "") {
+      return IconButton(
+        icon: const Icon(Icons.notifications),
+        onPressed: () {
+          forceShowNotification = true;
+        },
+      );
+    }
+
+    if (_selectedIndex == settingsPageIndex) {
+      return IconButton(
+        icon: const Icon(Icons.dns_rounded),
+        onPressed: () {
+          setState(() {
+            _selectedIndex = directSocketPageIndex;
+            _lastSelectedIndex = settingsPageIndex;
+            //_createDeviceList();
+          });
+        },
+      );
+    }
+
+    if (_selectedIndex == directSocketPageIndex) {
+      return IconButton(
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: () {
+          setState(() {
+            _selectedIndex = _lastSelectedIndex; 
+            _lastSelectedIndex = homePageIndex;         
+          });
+        },
+      );
+    }
+
+    return const Text("");
+
+  }
+
+  bool backInterceptor(bool stopDefaultButtonEvent, RouteInfo info) {
+    setState(() {
+      if (_selectedIndex == homePageIndex) {
+        exit(0); // exit app if back button is pressed on home page
+      }
+
+      _selectedIndex = _lastSelectedIndex;   
+
+      if (_selectedIndex == settingsPageIndex) {
+        _lastSelectedIndex = homePageIndex;
+      }       
+    });
+    return true;
   }
 
   @override
@@ -214,6 +277,7 @@ class _HomePageState extends State<HomePage> {
       context.tr("devices_text"),
       _selectedDevice.name,
       context.tr("settings_text"),
+      context.tr("socket_text"),
     ];
 
     // Get theme colors
@@ -227,13 +291,7 @@ class _HomePageState extends State<HomePage> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 18.0),
-            child: (_selectedIndex != devicePageIndex || _selectedDevice.name == "") ? const Text("") :
-            IconButton(
-              icon: const Icon(Icons.notifications),
-              onPressed: () {
-                forceShowNotification = true;
-              },
-            )
+            child: getActionButton(),
           ),
         ],
       ),
@@ -242,7 +300,7 @@ class _HomePageState extends State<HomePage> {
         animationCurve: Curves.fastEaseInToSlowEaseOut,
         animationDuration: const Duration(milliseconds: 350),
         selectedIndex: _selectedIndex,
-        iconSize: 35,
+        iconSize: 30,
         showElevation: false,
         backgroundColor: theme.colorScheme.surface,
         onItemSelected: (index) => setState(() {
@@ -258,6 +316,7 @@ class _HomePageState extends State<HomePage> {
             _createDeviceList();
           }
 
+          _lastSelectedIndex = homePageIndex;
           _selectedIndex = index;
         }),
         items: [
@@ -271,7 +330,7 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.sensors),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: Text(context.tr("devices_text"), style: const TextStyle(fontSize: 16)),
+            title: Text(context.tr("device_text"), style: const TextStyle(fontSize: 16)),
           ),
           FlashyTabBarItem(
             icon: const Icon(Icons.settings),

@@ -1,6 +1,8 @@
 {
     "this_language": "Español",
+    "device_text": "Dispositivo",
     "devices_text": "Dispositivos",
+    "socket_text": "Socket",
     "settings_text": "Configuración",
     "list_text": "Lista",
     "update_text": "Actualizar",
@@ -8,6 +10,17 @@
     "no_device_found": "No se encontró ningún dispositivo",
     "discover_devices_text": "Buscar nuevos dispositivos",
     "loading_text": "Cargando...",
+    "direct_socket": {
+        "device_ip": "IP del dispositivo",
+        "device_port": "Puerto del dispositivo",
+        "command": "Comando",
+        "send": "Enviar",
+        "connect": "Conectar",
+        "disconnect": "Desconectar",
+        "received_data": "Datos recibidos",
+        "connected": "Conectado",
+        "disconnected": "Desconectado"
+    },
     "settings": {
         "wifi_info": {
             "title": "Información WiFi",
@@ -20,9 +33,9 @@
         "connection": {
             "title": "Conexión",
             "ext_server_ip": "IP del servidor externo",
-            "ext_server_ip_description": "Se utiliza para obtener características externas (como gráficos)",
-            "update_period": "Período de actualización",
-            "update_period_description": "Especifica cada cuánto tiempo se actualiza la lista de características"
+            "ext_server_ip_description": "Usado para obtener características externas (como gráficos)",
+            "update_period": "Periodo de actualización",
+            "update_period_description": "Especifica cada cuánto tiempo actualizar la lista de características"
         },
         "device_discovery": {
             "title": "Búsqueda de dispositivos",
@@ -41,23 +54,23 @@
                 "system": "Sistema"
             }
         },
-        "restore_to_default": "Restablecer a valores predeterminados"
+        "restore_to_default": "Restaurar valores predeterminados"
     },
     "device": {
         "change_name_dialog_title": "Cambiar nombre",
-        "change_name_dialog_hint": "Editar el nombre del dispositivo",
+        "change_name_dialog_hint": "Modificar el nombre del dispositivo",
         "notification": "Notificación",
         "no_notif_dialog_title": "Sin nuevas notificaciones",
         "no_notif_dialog_content": "No hay notificaciones",
         "retry_text": "Reintentar",
-        "cant_send_command": "No se puede enviar el comando:\n{}",
+        "cant_send_command": "No se pudo enviar el comando:\n{}",
         "success_text": "Éxito",
         "error_text": "Error",
         "change_name_success": "Nombre cambiado con éxito",
-        "change_name_error": "No se puede cambiar el nombre del dispositivo. Inténtalo de nuevo",
-        "no_content_sent": "No se ha enviado contenido",
+        "change_name_error": "No se pudo cambiar el nombre del dispositivo. Inténtalo de nuevo",
+        "no_content_sent": "No se envió contenido",
         "device_still_busy": "El dispositivo sigue ocupado",
-        "values_update_timeout": "Tiempo de espera al actualizar los valores",
+        "values_update_timeout": "Tiempo de espera durante la actualización de valores",
         "external_feature_no_connection": "No se puede conectar a {}",
         "time_interval": "Intervalo de tiempo",
         "value": "Valor",
