@@ -404,8 +404,8 @@ Response_t WIFI_SetName(WIFI_t* wifi, char* name)
 		name_size = NAME_MAX_SIZE;
 	else
 	{
-		memset(wifi->name + name_size, 0, NAME_MAX_SIZE);
-		memset(savedata.name + name_size, 0, NAME_MAX_SIZE);
+		memset(wifi->name + name_size, 0, NAME_MAX_SIZE - name_size);
+		memset(savedata.name + name_size, 0, NAME_MAX_SIZE - name_size);
 	}
 
 	memcpy(savedata.name, name, name_size);
