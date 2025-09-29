@@ -6,13 +6,13 @@ Supports **dark/light mode**, **graphs**, **buttons**, in-app **notifications**.
 ### Direct socket communication
 You can access this page from the settings. It's used for debug purposes: you can connect to a SNSE socket and send/receive data
 ### Settings
-There are multiple settings to adapt to your use case. You can change the number of devicees searched, the update interval, the external server IP or the search timeout. Currently, the supported languages are: Italian, English, Spanish, French, German
+There are multiple settings to adapt to your use case. You can change the number of devices searched, the update interval, the external server IP or the search timeout. Currently, the supported languages are: Italian, English, Spanish, French, German
 
 <img src="pictures/homepage.png" height="500"/> <img src="pictures/graph.png" height="500"/> <img src="pictures/buttons.png" height="500"/> <img src="pictures/notification.png" height="500"/> <img src="pictures/socket_comm.png" height="500"/> <img src="pictures/settingspage.jpg" height="500"/>
 
 # How it works
 ## STM32-ESP board
-The main component is the STM32 - ESP8266 board. The STM32 communicates via UART with the ESP8266, which as the AT firmware loaded. When the microcontroller boots, it resets the ESP, initializes the UART DMA, connects to the specified WiFi (`credentials.h`) and sets up a server with the port `34677`. In the main loop it checks for new connections and handles them. My **ESP-AT-STM32** driver makes it very easy to add new features: you can just check if the request has a certain key and/or value with simple functions. You can check the driver page [here](https://github.com/Kikkiu17/ESP-AT-STM32) to see an example. The same example code is in [this project's STM32 folder](https://github.com/Kikkiu17/SNSE/tree/main/STM32).
+The main component is the STM32 - ESP8266 board. The STM32 communicates via UART with the ESP8266, which has the AT firmware loaded. When the microcontroller boots, it resets the ESP, initializes the UART DMA, connects to the specified WiFi (`credentials.h`) and sets up a server with the port `34677`. In the main loop it checks for new connections and handles them. My **ESP-AT-STM32** driver makes it very easy to add new features: you can just check if the request has a certain key and/or value with simple functions. You can check the driver page [here](https://github.com/Kikkiu17/ESP-AT-STM32) to see an example. The same example code is in [this project's STM32 folder](https://github.com/Kikkiu17/SNSE/tree/main/STM32).
 ## External server
 If you need more complex features, such as a graph, an [external server](https://github.com/Kikkiu17/SNSE/tree/main/SNSE%20external%20server) is needed. It gets devices IPs from the `devs_list.txt` file and for every line, it connects to the IP and gets the specified number of features. For example, if a device sends the following data as features: `09/09/2025;17:51;0 V;0.00 A;0.00 W;`, and a line in `devs_list.txt` is `192.168.1.7 3`, it gets `0 V`, `0.00 A`, `0.00 W` and saves them in a file in the folder `devs`. This data can then be used to display a graph in the SNSE app.
 ## App
