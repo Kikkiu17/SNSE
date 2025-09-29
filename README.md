@@ -1,5 +1,5 @@
 # SNSE
-### Easily create your own IoT device and control it from an Android app
+### Easily create your own IoT device and control it from the SNSE app
 
 ## Features
 Supports **dark/light mode**, **graphs**, **buttons**, in-app **notifications**.
@@ -39,7 +39,7 @@ to your project.
 
 Next, change the settings in the `settings.h` file. If you want to save data to the flash memory, remember to check the last page address in the FLASH section of the file! <ins>If the program binary size is greater than FLASH_SIZE - PAGE_SIZE</ins>, where FLASH_SIZE is the size of your microcontroller's flash and PAGE_SIZE is the size of your microcontroller's flash page, <ins>the program WILL be overwritten and undefined behavior may occur.</ins> Check your datasheet!
 
-Now, you can upload the example to your microcontroller. If you open the Android app, it will automatically search for new devices and will find the one you just set up.
+Now, you can upload the example to your microcontroller. If you open the app, it will automatically search for new devices and will find the one you just set up.
 ## External server
 To set up the external server, you need to compile the two `.cpp` files in the [external server folder](https://github.com/Kikkiu17/SNSE/tree/main/SNSE%20external%20server) (for example by running `gcc -o snse_server snse_comm_server.cpp` and `gcc -o snse_getter snse_getter.cpp`).
 
@@ -56,7 +56,7 @@ sprintf(conn->wifi->buf, features_template,
   voltage_variable
 );
 ```
-As you can see, adding every feature in its own line in the FEATURES_TEMPLATE is useful so that we can easily distinguish the variables in this function. If `voltage_variable` is 230, this new feature will be displayed in the Android app as following:
+As you can see, adding every feature in its own line in the FEATURES_TEMPLATE is useful so that we can easily distinguish the variables in this function. If `voltage_variable` is 230, this new feature will be displayed in the app as following:
 - Voltage: 230 V
 
 Now you can add any supported feature. All the features and their usage are documented in the `settings.h` file. For other examples, you can check some of my other projects based on SNSE: [AutoIrrigator](https://github.com/Kikkiu17/AutoIrrigator), [AutoLight](https://github.com/Kikkiu17/AutoLight), [ESPIOT](https://github.com/Kikkiu17/espiot). The example provided in this repository has a sensor feature and a switch feature.
