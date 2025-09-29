@@ -391,11 +391,12 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           ListTile(
             title: Text("settings.interface.theme.title".tr()),
             trailing: DropdownButton<String>(
-                value: _themeValue,
-                items: [
-                  DropdownMenuItem(value: 'sys', child: Text("settings.interface.theme.system".tr())),
-                  DropdownMenuItem(value: 'light', child: Text("settings.interface.theme.light_mode".tr())),
-                  DropdownMenuItem(value: 'dark', child: Text("settings.interface.theme.dark_mode".tr())),
+              menuMaxHeight: 300,
+              value: _themeValue,
+              items: [
+                DropdownMenuItem(value: 'sys', child: Text("settings.interface.theme.system".tr())),
+                DropdownMenuItem(value: 'light', child: Text("settings.interface.theme.light_mode".tr())),
+                DropdownMenuItem(value: 'dark', child: Text("settings.interface.theme.dark_mode".tr())),
               ],
               onChanged: (value) {
                 _themeValue = value!;
@@ -426,6 +427,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           ListTile(
             title: Text("settings.interface.language_text".tr()),
             trailing: DropdownButton<String>(
+              menuMaxHeight: 300,
               value: Localizations.localeOf(context).languageCode,
               items: languageDropDownMenuItems(context),
               onChanged: (value) {

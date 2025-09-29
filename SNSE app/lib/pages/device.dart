@@ -44,6 +44,8 @@ class TcpClient {
   bool _stopRequested = false;
   Completer<void>? _loopCompleter;
 
+  int? customTimeout;
+
   Future<void> connectAndStartLoop(String host, int port, Device? dev, BuildContext context) async {
     bool connected = await connect(host, port, dev);
     if (connected) {
@@ -112,9 +114,9 @@ class TcpClient {
       _responseQueue.add(completer);
       _socket!.write(data);
 
-      return await completer.future.timeout(const Duration(milliseconds: extServerTimeout), onTimeout: () {
+      return await completer.future.timeout(Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()), onTimeout: () {
         _responseQueue.remove(completer);
-        debug.log('No response within $extServerTimeout ms. Request: $data');
+        debug.log('No response within ${customTimeout ?? savedSettings.getUpdateTime()} ms. Request: $data');
         return ""; // Return empty string on timeout
       });
     });

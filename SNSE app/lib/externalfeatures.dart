@@ -153,6 +153,7 @@ class Chart {
 
 Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotifier addListener) async {
   TcpClient extServer = TcpClient();
+  extServer.customTimeout = extServerTimeout;
   Chart chart = features[index];
 
   bool connected = await extServer.connect(savedSettings.getExtServerIP(), extServerPort, null);
@@ -247,6 +248,7 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
           child: Text("device.time_interval".tr()),
         ),
         DropdownButton<String>(
+          menuMaxHeight: 300,
           value: chart.selectedValue,
           items: chart.translatedOptions
               .map<DropdownMenuItem<String>>((String value) {

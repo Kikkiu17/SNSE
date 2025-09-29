@@ -3,6 +3,7 @@ import 'pages/device.dart';
 import 'dart:io';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'pages/settings.dart';
+import 'dart:developer' as dev;
 
 const String idTemplate = "ESPDEVICE";
 
@@ -89,6 +90,7 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     if (!response.contains("200 OK")) {
       // retry
       sleep(const Duration(milliseconds: 25));
+      dev.log("\x1B[31mretrying ip: $ip\x1B[0m");
       response = await client.sendData("GET ?wifi=IP");
     }
     
@@ -105,6 +107,7 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     }
 
     Device device = await createDevice(ip, client);
+    dev.log("disconnecting from ip: ${device.ip}");
     client.disconnect();
 
     devices.add(device);
