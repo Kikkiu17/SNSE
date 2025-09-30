@@ -13,6 +13,7 @@ import '../languages.dart';
 const String dataSeparator = "\$";
 
 const int defaultPort = 34677; // default port for ESP devices
+const int connectionRetries = 4; // retries to connect to a known device
 
 String extServerIP = "";
 const int extServerPort = 34678;

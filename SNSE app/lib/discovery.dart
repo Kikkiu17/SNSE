@@ -13,21 +13,21 @@ Future<Device> createDevice(String ip, TcpClient client) async
   device.ip = ip;
 
   // --- GET DEVICE ID ---
-  String response = await client.sendData("GET ?wifi=ID");
+  String response = await client.sendDataRetry("GET ?wifi=ID", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;
   }
   device.id = response.split("\n")[1];
 
   // --- GET DEVICE NAME ---
-  response = await client.sendData("GET ?wifi=name");
+  response = await client.sendDataRetry("GET ?wifi=name", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;
   }
   device.name = response.split("\n")[1];
   
   // --- GET DEVICE FEATURES ---
-  response = await client.sendData("GET ?features");
+  response = await client.sendDataRetry("GET ?features", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;
   }
@@ -86,13 +86,7 @@ Future<List<Device>> discoverDevices(List<String> ips) async
       continue;
     }
 
-    String response = await client.sendData("GET ?wifi=IP");
-    if (!response.contains("200 OK")) {
-      // retry
-      sleep(const Duration(milliseconds: 25));
-      dev.log("\x1B[31mretrying ip: $ip\x1B[0m");
-      response = await client.sendData("GET ?wifi=IP");
-    }
+    String response = await client.sendDataRetry("GET ?wifi=IP", connectionRetries);
     
     try {
       if (response.contains("200 OK")) {

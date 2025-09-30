@@ -124,6 +124,18 @@ class TcpClient {
     return result;
   }
 
+  Future<String> sendDataRetry(String data, int retries) async {
+    String response = "";
+    for (int i = 0; i < retries; i++) {
+      response = await sendData(data);
+      if (response.contains("200 OK")) {
+        break;
+      }
+      debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
+    }
+    return response;
+  }
+
   /// Start the periodic loop that sends two requests every 250ms
   Future<void> startSendingLoop(BuildContext context) async {
     if (linkedDevice == null) return;

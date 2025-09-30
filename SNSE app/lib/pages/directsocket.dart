@@ -5,10 +5,12 @@ import 'package:snse/pages/settings.dart';
 import 'device.dart';
 
 String command = "";
-String recv = "";
-String device_ip = "";
-String device_port = "";
+String recvString = "";
+String deviceIP = "";
+String devicePort = "";
 bool isConnected = false;
+int sentBytes = 0;
+int recvBytes = 0;
 
 Device device = Device();
 
@@ -44,7 +46,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
       }
     } else if (state == AppLifecycleState.resumed) {
       // app in foreground
-      device.client.connect(device.ip, int.tryParse(device_port) ?? defaultPort, device).then((connected) {
+      device.client.connect(device.ip, int.tryParse(devicePort) ?? defaultPort, device).then((connected) {
         isConnected = connected;
         if (context.mounted) {
           setState(() {});
@@ -83,7 +85,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               width: 140,
               height: 25,
               child: TextField(
-                controller: TextEditingController(text: device_ip),
+                controller: TextEditingController(text: deviceIP),
                 textAlign: TextAlign.center,
                 decoration: const InputDecoration(
                   contentPadding: EdgeInsets.only(bottom: 1),
@@ -91,7 +93,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  device_ip = value;
+                  deviceIP = value;
                 },
               ),
             ),
@@ -108,7 +110,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               width: 140,
               height: 25,
               child: TextField(
-                controller: TextEditingController(text: (device_port == "") ? defaultPort.toString() : device_port),
+                controller: TextEditingController(text: (devicePort == "") ? defaultPort.toString() : devicePort),
                 textAlign: TextAlign.center,
                 decoration: const InputDecoration(
                   contentPadding: EdgeInsets.only(bottom: 1),
@@ -116,7 +118,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  device_port = value;
+                  devicePort = value;
                 },
               ),
             ),
@@ -130,8 +132,11 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               child: Text("direct_socket.connect".tr()),
               onPressed: () async {
                 device.client.disconnect();
-                device.ip = device_ip;
-                isConnected = await device.client.connect(device.ip, int.tryParse(device_port) ?? defaultPort, device);
+                device.ip = deviceIP;
+                isConnected = await device.client.connect(device.ip, int.tryParse(devicePort) ?? defaultPort, device);
+                sentBytes = 0;
+                recvBytes = 0;
+                recvString = "";
                 if (context.mounted) {
                   setState(() {});
                 }
@@ -145,6 +150,9 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               onPressed: () {
                 device.client.disconnect();
                 isConnected = false;
+                sentBytes = 0;
+                recvBytes = 0;
+                recvString = "";
                 if (context.mounted) {
                   setState(() {});
                 }
@@ -189,15 +197,24 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               ),
               child: Text("direct_socket.send".tr()),
               onPressed: () async {
-                recv = "";
-                recv = await device.client.sendData(command);
+                recvString = "";
+                recvString = await device.client.sendData(command);
+                sentBytes += command.length;
+                recvBytes += recvString.length;
                 if (context.mounted) {
                   setState(() {});
                 }
               }
-            )
+            ),
+            trailing: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text("direct_socket.sent".tr(args: [sentBytes.toString()])),
+                Text("direct_socket.received".tr(args: [recvBytes.toString()])),
+              ],
+            ),
           ),
-          // RECV
+          // recvString
           ListTile(
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(20))
@@ -210,7 +227,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
                 SizedBox(
                   height: 200,
                   child: TextField(
-                    controller: TextEditingController(text: recv),
+                    controller: TextEditingController(text: recvString),
                     maxLines: null,
                     expands: true,
                     textAlign: TextAlign.center,
@@ -219,7 +236,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) {
-                      recv = value;
+                      recvString = value;
                     },
                   ),
                 ),

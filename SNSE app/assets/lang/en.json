@@ -19,7 +19,9 @@
         "disconnect": "Disconnect",
         "received_data": "Received data",
         "connected": "Connected",
-        "disconnected": "Disconnected"
+        "disconnected": "Disconnected",
+        "sent": "Sent: {}",
+        "received": "Received: {}"
     },
     "settings": {
         "wifi_info": {
