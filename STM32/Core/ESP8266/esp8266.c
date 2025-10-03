@@ -404,8 +404,8 @@ Response_t WIFI_SetName(WIFI_t* wifi, char* name)
 		name_size = NAME_MAX_SIZE;
 	else
 	{
-		memset(wifi->name + name_size, 0, NAME_MAX_SIZE - name_size);
-		memset(savedata.name + name_size, 0, NAME_MAX_SIZE - name_size);
+		memset(wifi->name + name_size - 1, 0, NAME_MAX_SIZE - name_size);
+		memset(savedata.name + name_size - 1, 0, NAME_MAX_SIZE - name_size);
 	}
 
 	memcpy(savedata.name, name, name_size);
@@ -596,11 +596,22 @@ Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, 
 		if (ESP8266_WaitForString(">", 100) == TIMEOUT) return ERR;
 	}
 
-	if (body_length < RESPONSE_MAX_SIZE)
-		body[body_length] = '\0';
+	uint32_t min_size = 0;
+	if (WIFI_BUF_MAX_SIZE < RESPONSE_MAX_SIZE)
+		min_size = WIFI_BUF_MAX_SIZE;
+	else
+		min_size = RESPONSE_MAX_SIZE;
+
+	if (body_length < min_size)
+	{
+		memcpy(conn->wifi->buf, body, body_length);
+		conn->wifi->buf[body_length] = '\0';
+	}
+	else
+		memcpy(conn->wifi->buf, body, min_size);
 
 	memset(conn->response_buffer, 0, RESPONSE_MAX_SIZE);
-	sprintf(conn->response_buffer, "%s\n%s\r\n", status_code, body);
+	sprintf(conn->response_buffer, "%s\n%s\r\n", status_code, conn->wifi->buf);
 	HAL_UART_Transmit(&STM_UART, (uint8_t*)conn->response_buffer, total_response_length, UART_TX_TIMEOUT);
 
 	if (ESP8266_WaitForString("Recv", AT_SHORT_TIMEOUT) == TIMEOUT)
