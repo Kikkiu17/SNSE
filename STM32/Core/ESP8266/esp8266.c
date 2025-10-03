@@ -400,13 +400,13 @@ Response_t WIFI_SetName(WIFI_t* wifi, char* name)
 	if (name[0] == 0) return ERR;
 
 	uint32_t name_size = strlen(name);
-	if (name_size > NAME_MAX_SIZE)
-		name_size = NAME_MAX_SIZE;
-	else
+	if (name_size < NAME_MAX_SIZE)
 	{
-		memset(wifi->name + name_size - 1, 0, NAME_MAX_SIZE - name_size);
-		memset(savedata.name + name_size - 1, 0, NAME_MAX_SIZE - name_size);
+		memset(wifi->name + name_size, 0, NAME_MAX_SIZE - name_size);
+		memset(savedata.name + name_size, 0, NAME_MAX_SIZE - name_size);
 	}
+	else
+		name_size = NAME_MAX_SIZE;
 
 	memcpy(savedata.name, name, name_size);
 	memcpy(wifi->name, name, name_size);
