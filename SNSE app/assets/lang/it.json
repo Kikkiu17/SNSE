@@ -6,6 +6,9 @@
     "settings_text": "Impostazioni",
     "list_text": "Lista",
     "update_text": "Aggiorna",
+    "cancel_text": "Annulla",
+    "add_text": "Aggiungi",
+    "add_manually_text": "Aggiungi manualmente",
     "no_device_selected": "Nessun dispositivo selezionato",
     "no_device_found": "Nessun dispositivo trovato",
     "discover_devices_text": "Trova nuovi dispositivi",
@@ -39,13 +42,6 @@
             "update_period": "Periodo di aggiornamento",
             "update_period_description": "Specifica ogni quanto tempo aggiornare la lista di caratteristiche"
         },
-        "device_discovery": {
-            "title": "Ricerca Dispositivi",
-            "max_ip": "Massimo IP per la ricerca",
-            "max_ip_description": "Verranno scansionati tutti gli IP a partire dal gateway fino all'IP specificato",
-            "timeout": "Timeout di ricerca",
-            "timeout_description": "Timeout di ogni dispositivo scansionato. Se il dispositivo non risponde entro il timeout inserito (in millisecondi), si passa al prossimo"
-        },
         "interface": {
             "title": "Interfaccia",
             "language_text": "Lingua",
@@ -59,6 +55,8 @@
         "restore_to_default": "Ripristina a default"
     },
     "device": {
+        "ip_not_empty": "L'IP non può essere vuoto",
+        "change_name_empty": "Il nome non può essere vuoto",
         "change_name_dialog_title": "Cambia nome",
         "change_name_dialog_hint": "Modifica il nome del dispositivo",
         "notification": "Notifica",

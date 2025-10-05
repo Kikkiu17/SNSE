@@ -40,6 +40,18 @@ void main() async {
     setWindowMinSize(const Size(650, 1000));
   }
 
+  // Check if theme preference exists
+  final themePref = storage.getString("isThemeSystem");
+  if (themePref == null) {
+    // No preference: use system theme
+    final brightness = WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    if (brightness == Brightness.dark) {
+      themeNotifier.value = ThemeMode.dark;
+    } else {
+      themeNotifier.value = ThemeMode.light;
+    }
+  }
+
   runApp(
     EasyLocalization(
       supportedLocales: getAvailableLocales(),

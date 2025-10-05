@@ -20,7 +20,6 @@ const int extServerPort = 34678;
 const int extServerTimeout = 2500; // ms
 
 int gatewayIpLast = 0;
-String readableMaxIp = "";
 bool darkModeSetByUser = false;
 String _themeValue = "sys";
 
@@ -29,27 +28,21 @@ String encode(Map<String, dynamic> map) => jsonEncode(map);
 Map<String, dynamic> decode(String str) => jsonDecode(str);
 
 class DefaultSavedSettings {
-  final int maxIp = 64;
   final bool darkMode = false;
-  final int scanTimeout = 30; // ms
   final bool isThemeSystem = true;
   final String extServerIP = "127.0.0.1";
   final int updateTime = 250; // ms
 }
 
 class SavedSettings {
-  static int _maxIp = DefaultSavedSettings().maxIp;
   static bool _darkMode = DefaultSavedSettings().darkMode;
-  static int _scanTimeout = DefaultSavedSettings().scanTimeout;
   static bool _isThemeSystem = DefaultSavedSettings().isThemeSystem;
   static String _extServerIP = DefaultSavedSettings().extServerIP;
   static int _updateTime = DefaultSavedSettings().updateTime;
 
   Map<String, dynamic> toMap() {
     return {
-      'maxIp': _maxIp,
       'darkMode': _darkMode,
-      'scanTimeout': _scanTimeout,
       'isThemeSystem': _isThemeSystem,
       'extServerIP': _extServerIP,
       'updateTime': _updateTime
@@ -57,9 +50,7 @@ class SavedSettings {
   }
 
   void setDefault(BuildContext? context) {
-    _maxIp = DefaultSavedSettings().maxIp;        // max number of IPs to scan
     _darkMode = DefaultSavedSettings().darkMode;
-    _scanTimeout = DefaultSavedSettings().scanTimeout;
     _isThemeSystem = DefaultSavedSettings().isThemeSystem;
     _extServerIP = DefaultSavedSettings().extServerIP;
     _updateTime = DefaultSavedSettings().updateTime;
@@ -70,9 +61,7 @@ class SavedSettings {
   }
 
   void fromMap(Map<String, dynamic> map) {
-    _maxIp = map['maxIp'];
     _darkMode = map['darkMode'];
-    _scanTimeout = map['scanTimeout'];
     _isThemeSystem = map['isThemeSystem'];
     _extServerIP = map['extServerIP'];
     _updateTime = map['updateTime'];
@@ -98,28 +87,12 @@ class SavedSettings {
     }
   }
 
-  int getMaxIp() {
-    return _maxIp;
-  }
-
-  void setMaxIp(int value) {
-    _maxIp = value;
-  }
-
   bool isDarkMode() {
     return _darkMode;
   }
 
   void setDarkMode(bool value) {
     _darkMode = value;
-  }
-
-  int getScanTimeout() {
-    return _scanTimeout;
-  }
-
-  void setScanTimeout(int value) {
-    _scanTimeout = value;
   }
 
   int getUpdateTime() {
@@ -217,13 +190,6 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       if (extServerIP.split('.').length == 4) {
         savedSettings.setExtServerIP(extServerIP);
       }
-
-      if (readableMaxIp.split('.').length != 4) return dev.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
-
-      int? maxIp = int.tryParse(readableMaxIp.split('.').last);
-      if (maxIp == null || maxIp <= gatewayIpLast || maxIp > 255) return dev.log("Invalid max IP value: $readableMaxIp, using default ${savedSettings.getMaxIp()}");
-
-      savedSettings.setMaxIp(maxIp);
     }
   }
 
@@ -249,10 +215,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       dev.log('Failed to get Wifi gateway address', error: e);
     }
 
-    readableMaxIp = "${(_wifiGatewayIP ?? "N/A").split(".").sublist(0, 3).join(".")}.${savedSettings.getMaxIp()}";
-
     dev.log("WiFi IPv4: $_wifiIPv4, Gateway: $_wifiGatewayIP, Submask: $_wifiSubmask");
-    dev.log("Readable Max IP: $readableMaxIp");
     setState(() {});
   }
 
@@ -285,53 +248,6 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                 Text("settings.wifi_info.port".tr(args: [defaultPort.toString()])),
                 Text("settings.wifi_info.ext_server_ip_port".tr(args: [extServerPort.toString()])),
               ],
-            ),
-          ),
-          ListTile(
-            title: Text("settings.device_discovery.title".tr()),
-            tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  shape: RoundedRectangleBorder(
-              //side: const BorderSide(width: 0.8),
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-          ListTile(
-            title: Text("settings.device_discovery.max_ip".tr()),
-            subtitle: Text("settings.device_discovery.max_ip_description".tr(), textAlign: TextAlign.justify),
-            trailing: SizedBox(
-              width: 140,
-              height: 25,
-              child: TextField(
-                controller: TextEditingController(text: readableMaxIp),
-                textAlign: TextAlign.center,
-                decoration: const InputDecoration(
-                  contentPadding: EdgeInsets.only(bottom: 1),
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (value) {
-                  readableMaxIp = value;
-                },
-              ),
-            ),
-          ),
-          ListTile(
-            title: Text("settings.device_discovery.timeout".tr()),
-            subtitle: Text("settings.device_discovery.timeout_description".tr(), textAlign: TextAlign.justify),
-            trailing: SizedBox(
-              width: 90,
-              child: TextField(
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  hintText: "${savedSettings.getScanTimeout()} ms",
-                  isDense: true,
-                ),
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onChanged: (value) {
-                  savedSettings.setScanTimeout(int.tryParse(value) ?? savedSettings.getScanTimeout());
-                },
-              ),
             ),
           ),
           ListTile(

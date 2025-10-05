@@ -34,6 +34,7 @@ class _HomePageState extends State<HomePage> {
   static Widget pageToRender = Text("loading_text".tr());
   static bool _updateExistingIDs = true;
   static List<String> _existingIPandIDs = List.empty(growable: true);
+  static List<String> _manuallyAddedIPs = List.empty(growable: true);
 
   //static DevicePage? page;
   static List<Widget> pages = List.filled(maxPages, loadingTile, growable: false);
@@ -71,11 +72,12 @@ class _HomePageState extends State<HomePage> {
     return item.cast<String>();
   }
 
-  void _createDeviceList() async
+  Future<void> _createDeviceList() async
   {
    if (_updateExistingIDs) {
       _updateExistingIDs = false;
       _existingIPandIDs = await _getData();
+      _existingIPandIDs.addAll(_manuallyAddedIPs);
     }
 
     setState(() {
@@ -204,6 +206,7 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    // direct socket connection button for settings page
     if (_selectedIndex == settingsPageIndex) {
       return IconButton(
         icon: const Icon(Icons.dns_rounded),
@@ -217,6 +220,7 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    // back button for direct socket page
     if (_selectedIndex == directSocketPageIndex) {
       return IconButton(
         icon: const Icon(Icons.arrow_back_rounded),
@@ -225,6 +229,60 @@ class _HomePageState extends State<HomePage> {
             _selectedIndex = _lastSelectedIndex; 
             _lastSelectedIndex = homePageIndex;         
           });
+        },
+      );
+    }
+
+    String newDeviceIp = "";
+
+    if (_selectedIndex == homePageIndex) {
+      return IconButton(
+        icon: const Icon(Icons.add),
+        onPressed: () {
+          showDialog (
+            context: context,
+            builder: (BuildContext context) => AlertDialog(
+              title: Text("add_manually_text".tr()),
+              content: TextField(
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  hintText: "direct_socket.device_ip".tr(),
+                ),
+                onChanged: (text) {
+                  newDeviceIp = text;
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    if (newDeviceIp == "") {
+                      showPopupOK(context, "device.error_text".tr(), "device.ip_not_empty".tr());
+                      return;
+                    }
+
+                    _updateExistingIDs = true;
+                    if (!_manuallyAddedIPs.contains(newDeviceIp)) {
+                      _manuallyAddedIPs.add(newDeviceIp);
+                    }
+                    await _createDeviceList();
+
+                    setState(() {
+                      _manuallyAddedIPs = List.empty(growable: true);
+                    });
+
+                    if (context.mounted) {
+                      Navigator.pop(context, true);
+                    }
+                  },
+                  child: Text("add_text".tr()),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text("cancel_text".tr()),
+                )
+              ],
+            )
+          );
         },
       );
     }
@@ -267,6 +325,7 @@ class _HomePageState extends State<HomePage> {
       }
 
       // rebuild device list to update language
+      _updateExistingIDs = true;
       _createDeviceList();
     }
 

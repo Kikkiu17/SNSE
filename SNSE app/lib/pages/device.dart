@@ -59,7 +59,7 @@ class TcpClient {
   Future<bool> connect(String host, int port, Device? dev) async {
     linkedDevice = dev;
     try {
-      _socket = await Socket.connect(host, port);
+      _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()));
       _socket!.listen(_onData, onError: _onError, onDone: _onDone);
       debug.log("Connected to $host");
       return true;
@@ -309,6 +309,11 @@ class Device {
           TextButton(
             onPressed: () {
 
+              if (userInputName == "") {
+                showPopupOK(context, "device.error_text".tr(), "device.change_name_empty".tr());
+                return;
+              }
+
               sendName(userInputName).then((statusCode) {
                 if (statusCode == "200 OK") {
                   showPopupOK(context, "device.success_text".tr(), "device.change_name_success".tr());
@@ -324,7 +329,7 @@ class Device {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annulla'),
+            child: Text("cancel_text".tr()),
           )
         ],
       )

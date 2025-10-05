@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'pages/device.dart';
-import 'dart:io';
-import 'package:network_info_plus/network_info_plus.dart';
 import 'pages/settings.dart';
-import 'dart:developer' as dev;
+import 'package:network_port_scanner/network_port_scanner.dart';
+import 'dart:developer' as debug;
 
 const String idTemplate = "ESPDEVICE";
 
@@ -37,20 +36,15 @@ Future<Device> createDevice(String ip, TcpClient client) async
 }
 
 Future<List<String>> scanNetwork() async {
-    List<String> ips = List.empty(growable: true);
-    await (NetworkInfo().getWifiIP()).then(
-      (ip) async {
-        final String subnet = ip!.substring(0, ip.lastIndexOf('.'));
-        for (var i = 0; i < savedSettings.getMaxIp(); i++) {
-          String ip = '$subnet.$i';
-          await Socket.connect(ip, defaultPort, timeout: Duration(milliseconds: savedSettings.getScanTimeout()))
-            .then((socket) async {
-              ips.add(socket.address.address);
-              socket.destroy();
-            }).catchError((error) => null);
-        }
-      },
+    List<String> ips = await NetworkScanner.scanNetwork(
+      port: defaultPort,
     );
+
+    debug.log('Found ${ips.length} devices with port $defaultPort open:');
+    for (String ip in ips) {
+      debug.log('- $ip');
+    }
+
     return ips;
   }
 
@@ -64,6 +58,10 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     newList = true;
     ips = await scanNetwork();
   }
+
+  // sorts list so that smaller ips are at the top
+  ips.sort();
+  ips = ips.reversed.toList();
   
   for (String ip in ips)
   {
@@ -101,7 +99,6 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     }
 
     Device device = await createDevice(ip, client);
-    dev.log("disconnecting from ip: ${device.ip}");
     client.disconnect();
 
     devices.add(device);
