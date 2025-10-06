@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:io' show  Platform;
-import 'package:window_size/window_size.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'pages/homepage.dart';
 import 'pages/settings.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'languages.dart';
 
@@ -29,16 +28,25 @@ ThemeData dark = ThemeData(
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  //await Permission.storage.request().isGranted;
+  await windowManager.ensureInitialized();
+
   final SharedPreferences storage = await SharedPreferences.getInstance();
 
   savedSettings.load();
 
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    setWindowTitle('SNSE');
-    setWindowMaxSize(const Size(650, 1000));
-    setWindowMinSize(const Size(650, 1000));
-  }
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(500, 750),
+    minimumSize: Size(350, 400),
+    title: "SNSE",
+    //center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
 
   // Check if theme preference exists
   final themePref = storage.getString("isThemeSystem");

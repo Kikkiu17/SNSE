@@ -49,6 +49,7 @@ dependencies:
   syncfusion_flutter_charts: ^31.1.17
   back_button_interceptor: ^8.0.4
   network_port_scanner: ^1.0.1
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

@@ -77,7 +77,9 @@ class _HomePageState extends State<HomePage> {
    if (_updateExistingIDs) {
       _updateExistingIDs = false;
       _existingIPandIDs = await _getData();
-      _existingIPandIDs.addAll(_manuallyAddedIPs);
+      if (_manuallyAddedIPs.isNotEmpty && _existingIPandIDs.isNotEmpty) {
+        _existingIPandIDs.addAll(_manuallyAddedIPs);
+      }
     }
 
     setState(() {
