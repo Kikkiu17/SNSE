@@ -35,7 +35,7 @@ int32_t bufferToInt(char* buf, uint32_t size)
 	return n;
 }
 
-Response_t ESP8266_WaitForStringCNDTROffset(char* str, int32_t offset, uint32_t timeout)
+Response_t ESP8266_WaitForStringCNDTROffset(const char* str, int32_t offset, uint32_t timeout)
 {
 	if (str == NULL) return NULVAL;
 	for (uint32_t i = 0; i < timeout; i++)

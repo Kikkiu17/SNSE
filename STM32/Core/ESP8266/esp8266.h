@@ -60,7 +60,7 @@ void ESP8266_HardwareReset(void);
 Response_t ESP8266_ATReset(void);
 Response_t ESP8266_CheckAT(void);
 
-Response_t ESP8266_WaitForStringCNDTROffset(char* str, int32_t offset, uint32_t timeout);
+Response_t ESP8266_WaitForStringCNDTROffset(const char* str, int32_t offset, uint32_t timeout);
 Response_t ESP8266_WaitForString(char* str, uint32_t timeout);
 Response_t ESP8266_WaitKeepString(char* str, uint32_t timeout);
 

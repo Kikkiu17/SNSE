@@ -70,6 +70,26 @@ class TcpClient {
     }
   }
 
+  Future<bool> connectRetry(String host, int port, int retries, Device? dev) async {
+    linkedDevice = dev;
+
+    for (int i = 0; i < retries; i++) {
+      try {
+        _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()));
+        _socket!.listen(_onData, onError: _onError, onDone: _onDone);
+        debug.log("Connected to $host");
+        return true;
+      } catch (e) {
+        debug.log('Connection failed: $e');
+      }
+      debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
+      await Future.delayed(const Duration(milliseconds: 5));
+    }
+
+    _socket = null;
+    return false;
+  }
+
   /// Handle incoming data and match it to the correct completer
   String _buffer = "";
 
@@ -132,6 +152,7 @@ class TcpClient {
         break;
       }
       debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
+      await Future.delayed(const Duration(milliseconds: 5));
     }
     return response;
   }

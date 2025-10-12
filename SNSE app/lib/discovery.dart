@@ -38,6 +38,7 @@ Future<Device> createDevice(String ip, TcpClient client) async
 Future<List<String>> scanNetwork() async {
     List<String> ips = await NetworkScanner.scanNetwork(
       port: defaultPort,
+      timeout: savedSettings.getUpdateTime() * 2
     );
 
     debug.log('Found ${ips.length} devices with port $defaultPort open:');
@@ -69,7 +70,7 @@ Future<List<Device>> discoverDevices(List<String> ips) async
     ip = ip.split(";")[0];
 
     TcpClient client = TcpClient();
-    bool connected = await client.connect(ip, defaultPort, null);
+    bool connected = await client.connectRetry(ip, defaultPort, connectionRetries, null);
 
     if (!connected) {
       if (!newList) {
