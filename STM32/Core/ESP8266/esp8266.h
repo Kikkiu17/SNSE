@@ -31,12 +31,12 @@ typedef enum
 
 typedef struct
 {
-	char 		IP[15];
-	char 		SSID[32];
-	char		pw[64];
-	char		buf[WIFI_BUF_MAX_SIZE];
-	char		hostname[HOSTNAME_MAX_SIZE];
-	char		name[NAME_MAX_SIZE];
+	char 		IP[15 + 1];
+	char 		SSID[32 + 1];
+	char		pw[64 + 1];
+	char		buf[WIFI_BUF_MAX_SIZE + 1];
+	char		hostname[HOSTNAME_MAX_SIZE + 1];
+	char		name[NAME_MAX_SIZE + 1];
 	char		time[8];	// hh:mm:ss
 	uint32_t	last_time_read;
 } WIFI_t;
@@ -46,9 +46,9 @@ typedef struct
 	WIFI_t* 	wifi;
 	uint8_t 	connection_number;
  	Request_t	request_type;
-	char		request[REQUEST_MAX_SIZE];
+	char		request[REQUEST_MAX_SIZE + 1];
 	uint32_t	request_size;
-	char		response_buffer[RESPONSE_MAX_SIZE];
+	char		response_buffer[RESPONSE_MAX_SIZE + 1];
 } Connection_t;
 
 int32_t bufferToInt(char* buf, uint32_t size);
@@ -60,30 +60,30 @@ void ESP8266_HardwareReset(void);
 Response_t ESP8266_ATReset(void);
 Response_t ESP8266_CheckAT(void);
 
-Response_t ESP8266_WaitForStringCNDTROffset(const char* str, int32_t offset, uint32_t timeout);
+Response_t ESP8266_WaitForStringCNDTROffset(char* str, int32_t offset, uint32_t timeout);
 Response_t ESP8266_WaitForString(char* str, uint32_t timeout);
 Response_t ESP8266_WaitKeepString(char* str, uint32_t timeout);
 
 HAL_StatusTypeDef ESP8266_SendATCommandNoResponse(char* cmd, size_t size, uint32_t timeout);
 Response_t ESP8266_SendATCommandResponse(char* cmd, size_t size, uint32_t timeout);
 Response_t ESP8266_SendATCommandKeepString(char* cmd, size_t size, uint32_t timeout);
-HAL_StatusTypeDef ESP8266_SendATCommandKeepStringNoResponse(char* cmd, size_t size);
+Response_t ESP8266_SendATCommandKeepStringNoResponse(char* cmd, size_t size);
 
 Response_t WIFI_Connect(WIFI_t* wifi);
 Response_t WIFI_GetConnectionInfo(WIFI_t* wifi);
 Response_t WIFI_SetCWMODE(uint8_t mode);
 Response_t WIFI_SetCIPMUX(uint8_t mux);
 Response_t WIFI_SetCIPSERVER(uint16_t server_port);
-Response_t WIFI_SetHostname(WIFI_t* wifi, char* hostname);
+Response_t WIFI_SetHostname(WIFI_t* wifi, const char* hostname);
 Response_t WIFI_GetHostname(WIFI_t* wifi);
 Response_t WIFI_SetName(WIFI_t* wifi, char* name);
 Response_t WIFI_GetIP(WIFI_t* wifi);
 Response_t WIFI_SetIP(WIFI_t* wifi, char* ip);
 
 Response_t WIFI_GetTime(WIFI_t* wifi);
-uint32_t WIFI_GetTimeHour(WIFI_t* wifi);
-uint32_t WIFI_GetTimeMinutes(WIFI_t* wifi);
-uint32_t WIFI_GetTimeSeconds(WIFI_t* wifi);
+int32_t WIFI_GetTimeHour(WIFI_t* wifi);
+int32_t WIFI_GetTimeMinutes(WIFI_t* wifi);
+int32_t WIFI_GetTimeSeconds(WIFI_t* wifi);
 
 Response_t WIFI_ReceiveRequest(WIFI_t* wifi, Connection_t* conn, uint32_t timeout);
 Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, uint32_t body_length);
@@ -95,5 +95,8 @@ char* WIFI_GetKeyValue(Connection_t* conn, char* request_key_ptr, uint32_t* valu
 Response_t WIFI_StartServer(WIFI_t* wifi, uint16_t port);
 Response_t ESP8266_ResetWaitReady();
 void WIFI_ResetConnectionIfError(WIFI_t* wifi, Connection_t* conn, Response_t wifistatus);
+
+void WIFI_Init(WIFI_t* wifi);
+void CONN_Init(Connection_t* conn);
 
 #endif /* ESP8266_ESP8266_H_ */

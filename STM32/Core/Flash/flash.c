@@ -17,7 +17,7 @@ void FLASH_EraseLastPage()
 	erase_structure.Banks = FLASH_BANK_1;
 	erase_structure.Page = FLASH_PAGE_NB - 1;	// last page
 	erase_structure.NbPages = 1;
-	uint32_t page_error;
+	uint32_t page_error = 0;
 	HAL_FLASHEx_Erase(&erase_structure, &page_error);
 }
 
@@ -32,9 +32,7 @@ void FLASH_WriteBuffer(uint8_t* buf, uint32_t size)
 	for (uint32_t flash_data_i = 0; flash_data_i < total_flash_data_blocks; flash_data_i++)
 	{
 		for (uint8_t byte_i = flash_data_i * FLASH_DATASIZE; byte_i < flash_data_i * FLASH_DATASIZE + FLASH_DATASIZE; byte_i++)
-		{
 			flash_data[byte_i % FLASH_DATASIZE] = (byte_i < size) ? *(buf + byte_i) : 0x00;
-		}
 
 		FLASH_DATATYPE serialized_flash_data = *((FLASH_DATATYPE*)flash_data);
 		HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, LAST_PAGE_ADDRESS + flash_data_i * FLASH_DATASIZE, serialized_flash_data);
@@ -43,10 +41,11 @@ void FLASH_WriteBuffer(uint8_t* buf, uint32_t size)
 
 void FLASH_WriteSaveData()
 {
-	HAL_FLASH_Unlock();
+	HAL_StatusTypeDef unlocked = HAL_FLASH_Unlock();
 	FLASH_EraseLastPage();
 	FLASH_WriteBuffer((uint8_t*)&savedata, sizeof(SaveData_t));
-	HAL_FLASH_Lock();
+	HAL_StatusTypeDef locked = HAL_FLASH_Lock();
+	unlocked = locked;
 }
 
 void FLASH_ReadSaveData()
