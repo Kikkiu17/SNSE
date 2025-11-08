@@ -90,27 +90,26 @@ std::string getLineSeparatedValue(std::string line, int index)
 void getDays(int client_fd, std::string ip)
 {
     std::ifstream file("devs/" + ip + ".txt");
-    
+
     if (!file.is_open())
     {
         sendResponse(client_fd, "404 Not Found", "No data found\n");
         return;
     }
-
+    
     std::vector<std::string> days;
     std::string line;
     std::string date = pairs[1].value; // Expected format: dd/mm/yyyy
-
-
+    
     while (std::getline(file, line))
     {
         std::string line_date = line.substr(0, line.find(";"));
         if (std::find(days.begin(), days.end(), line_date) == days.end())
-            days.push_back(line_date);
+        days.push_back(line_date);
     }
-
+    
     file.close();
-
+    
     if (days.empty())
         sendResponse(client_fd, "404 Not Found", "No data found\n");
     else
@@ -120,9 +119,9 @@ void getDays(int client_fd, std::string ip)
         {
             response += days[i];
             if (i != days.size() - 1)
-                response += "\n";
+            response += "\n";
         }
-
+        
         sendResponse(client_fd, "200 OK", response);
     }
 }
@@ -605,6 +604,11 @@ void handleGET(int client_fd, std::string req)
 
     req.append("&"); // simplify parsing
 
+    // remove trailing \r\n, not needed
+    std::size_t pos = req.find("\r\n");
+    if (pos != std::string::npos)
+        req.replace(pos, 2, "");
+
     for (int i = 0; i < key_value_pairs; i++)
     {
         std::string pair = req.substr(0, req.find("&"));
@@ -629,7 +633,9 @@ void handleGET(int client_fd, std::string req)
         if (pairs[1].value == "days")
         {
             if (pairs.size() <= 2)
+            {
                 getDays(client_fd, ip);
+            }
             else if (pairs[2].key == "data")
                 getDataDay(client_fd, ip, pairs[2].value);
             else
