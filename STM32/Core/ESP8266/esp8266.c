@@ -423,7 +423,14 @@ Response_t WIFI_SetName(WIFI_t* wifi, char* name)
 
 	uint32_t name_size = strnlen(name, NAME_MAX_SIZE);
 
-	memcpy(savedata.name, name, name_size);
+	// if it's the same pointer, deleting savedata.name results in losing the name
+	if (name != savedata.name)
+	{
+		memset(savedata.name, 0, NAME_MAX_SIZE);
+		memcpy(savedata.name, name, name_size);
+	}
+
+	memset(wifi->name, 0, name_size);
 	strncpy(wifi->name, name, name_size);
 
 	return OK;
