@@ -132,7 +132,8 @@ class TcpClient {
 
       final completer = Completer<String>();
       _responseQueue.add(completer);
-      _socket!.write(data);
+      _socket!.write("$data\r\n");
+      print("trying: $data\r\n");
 
       return await completer.future.timeout(Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()), onTimeout: () {
         _responseQueue.remove(completer);

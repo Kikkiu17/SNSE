@@ -11,8 +11,8 @@
 #include <stdio.h>
 #include <time.h>
 
-#define CWMODE_MAX_SIZE 13
-#define CIPMUX_MAX_SIZE 13
+#define CWMODE_MAX_SIZE 14
+#define CIPMUX_MAX_SIZE 14
 #define CIPSERVER_MAX_SIZE 50
 
 char uart_buffer[UART_BUFFER_SIZE + 1];
@@ -343,7 +343,7 @@ Response_t WIFI_SetCWMODE(uint8_t mode)
 
 	char cwmode[CWMODE_MAX_SIZE + 1];
 	memset(cwmode, 0, CWMODE_MAX_SIZE + 1);
-	snprintf(cwmode, CWMODE_MAX_SIZE, "AT+CWMODE=%d\r\n", mode);
+	snprintf(cwmode, CWMODE_MAX_SIZE, "AT+CWMODE=%c\r\n", (char)(mode + '0'));
 	return ESP8266_SendATCommandResponse(cwmode, CWMODE_MAX_SIZE, AT_SHORT_TIMEOUT);
 }
 
@@ -353,7 +353,7 @@ Response_t WIFI_SetCIPMUX(uint8_t mux)
 
 	char cipmux[CIPMUX_MAX_SIZE + 1];
 	memset(cipmux, 0, CIPMUX_MAX_SIZE + 1);
-	snprintf(cipmux, CIPMUX_MAX_SIZE, "AT+CIPMUX=%d\r\n", mux);
+	snprintf(cipmux, CIPMUX_MAX_SIZE, "AT+CIPMUX=%c\r\n", (char)(mux + '0'));
 	return ESP8266_SendATCommandResponse(cipmux, CIPMUX_MAX_SIZE, AT_SHORT_TIMEOUT);
 }
 
@@ -409,6 +409,8 @@ Response_t WIFI_GetHostname(WIFI_t* wifi)
 	memset(wifi->hostname, 0, HOSTNAME_MAX_SIZE);
 	memcpy(wifi->hostname, hostname_start_p, hostname_size);
 
+	ESP8266_ClearBuffer();
+
 	return OK;
 }
 
@@ -422,7 +424,7 @@ Response_t WIFI_SetName(WIFI_t* wifi, char* name)
 	uint32_t name_size = strnlen(name, NAME_MAX_SIZE);
 
 	memcpy(savedata.name, name, name_size);
-	strcpy(wifi->name, name, name_size);
+	strncpy(wifi->name, name, name_size);
 
 	return OK;
 }
@@ -555,7 +557,7 @@ Response_t WIFI_ReceiveRequest(WIFI_t* wifi, Connection_t* conn, uint32_t timeou
 		// get the size of the message received until "POST ", then remove
 		// the size of "+IPD,n,m:" to get the size of "POST "
 		request_start_index = ptr - uart_buffer;
-		request_size = request_size - (request_body_start_index - request_start_index) + 1;
+		request_size = request_size - (request_body_start_index - request_start_index) + 1 - 2; // the -2 removes \r\n
 	}
 	else
 	{
@@ -577,6 +579,7 @@ Response_t WIFI_ReceiveRequest(WIFI_t* wifi, Connection_t* conn, uint32_t timeou
 
 Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, uint32_t body_length)
 {
+	// body invece che essere 1, è qualcosa di strano
 	if (conn == NULL || status_code == NULL || body == NULL) return NULVAL;
 	if (body_length > RESPONSE_MAX_SIZE) return ERR;
 	Response_t atstatus = ERR;
@@ -588,7 +591,7 @@ Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, 
 	uint32_t status_code_width = strlen(status_code);
 
 	// get length of the entire TCP packet
-	uint32_t total_response_length = 1 + status_code_width + body_length + 2;	// the last 2 are \r\n as delimiter for the response
+	uint32_t total_response_length = status_code_width + 1 + body_length + 2;	// the last 2 are \r\n as delimiter for the response
 	if (total_response_length > RESPONSE_MAX_SIZE) return ERR;
 
 	// get width in characters of the response length
@@ -609,26 +612,11 @@ Response_t WIFI_SendResponse(Connection_t* conn, char* status_code, char* body, 
 		if (ESP8266_WaitForString(">", 100) == TIMEOUT) return ERR;
 	}
 
-	uint32_t min_size = 0;
-	if (WIFI_BUF_MAX_SIZE < RESPONSE_MAX_SIZE)
-		min_size = WIFI_BUF_MAX_SIZE;
-	else
-		min_size = RESPONSE_MAX_SIZE;
-
-	memset(conn->wifi->buf, 0, WIFI_BUF_MAX_SIZE);
-	if (body_length < min_size)
-	{
-		memcpy(conn->wifi->buf, body, body_length);
-		conn->wifi->buf[body_length] = '\0';
-	}
-	else
-	{
-		memcpy(conn->wifi->buf, body, min_size);
-		total_response_length -= body_length - min_size;
-	}
-
 	memset(conn->response_buffer, 0, RESPONSE_MAX_SIZE);
-	snprintf(conn->response_buffer, RESPONSE_MAX_SIZE, "%s\n%s\r\n", status_code, conn->wifi->buf);
+	snprintf(conn->response_buffer, RESPONSE_MAX_SIZE, "%s\n", status_code);
+	memcpy(conn->response_buffer + status_code_width + 1, body, body_length);
+	strncat(conn->response_buffer, "\r\n", RESPONSE_MAX_SIZE - strlen(conn->response_buffer));
+
 	HAL_UART_Transmit(&STM_UART, (uint8_t*)conn->response_buffer, total_response_length, UART_TX_TIMEOUT);
 
 	if (ESP8266_WaitForString("Recv", AT_SHORT_TIMEOUT) == TIMEOUT)

@@ -41,11 +41,10 @@ void FLASH_WriteBuffer(uint8_t* buf, uint32_t size)
 
 void FLASH_WriteSaveData()
 {
-	HAL_StatusTypeDef unlocked = HAL_FLASH_Unlock();
+	HAL_FLASH_Unlock();
 	FLASH_EraseLastPage();
 	FLASH_WriteBuffer((uint8_t*)&savedata, sizeof(SaveData_t));
-	HAL_StatusTypeDef locked = HAL_FLASH_Lock();
-	unlocked = locked;
+	HAL_FLASH_Lock();
 }
 
 void FLASH_ReadSaveData()
