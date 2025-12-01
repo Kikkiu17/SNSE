@@ -24,6 +24,27 @@ typedef uint8_t bool;
 #define STATUS_Port STATUS_LED_GPIO_Port
 #define STATUS_Pin STATUS_LED_Pin
 
+// if START_ATTEMPTS is set to -1, the program won't start until it receives
+// "ready" from the ESP
+#define START_ATTEMPTS -1
+
+// ==========================================================================================
+// 										USER DEFINES
+// ==========================================================================================
+typedef struct
+{
+	bool pressed;
+	bool inverted;
+	GPIO_TypeDef* port;
+	uint16_t pin;
+	bool manual;
+} Switch_t;
+
+#define NUMBER_OF_SWITCHES 1
+#define RELAY_SWITCH 0
+
+extern Switch_t switches[NUMBER_OF_SWITCHES];
+
 // ==========================================================================================
 // 											FLASH
 // ==========================================================================================
@@ -129,27 +150,6 @@ typedef struct sdata
 
 extern SaveData_t savedata;
 #endif
-
-// ==========================================================================================
-// 											OTHER
-// ==========================================================================================
-
-#define START_ATTEMPTS -1
-
-typedef struct
-{
-	bool pressed;
-	bool inverted;
-	GPIO_TypeDef* port;
-	uint16_t pin;
-	bool manual;
-} Switch_t;
-
-#define NUMBER_OF_SWITCHES 1
-
-#define RELAY_SWITCH 0
-
-extern Switch_t switches[1];
 
 // ==========================================================================================
 // 										COMM TEMPLATE

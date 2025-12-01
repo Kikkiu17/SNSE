@@ -9,7 +9,7 @@
 #include "../Flash/flash.h"
 
 Notification_t notification;
-Switch_t switches[1];
+Switch_t switches[NUMBER_OF_SWITCHES];
 
 void SWITCH_Init(Switch_t* sw, bool inverted, GPIO_TypeDef* port, uint16_t pin)
 {
