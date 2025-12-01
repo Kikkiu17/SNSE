@@ -26,6 +26,7 @@
 /* USER CODE BEGIN Includes */
 #include "../ESP8266/esp8266.h"
 #include "../wifihandler/wifihandler.h"
+#include "../wifihandler/userhandlers.h"
 #include "../credentials.h"
 #include <string.h>
 #include <stdio.h>
