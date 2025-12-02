@@ -146,6 +146,7 @@ extern Notification_t notification;
 typedef struct sdata
 {
 	char name[NAME_MAX_SIZE];
+	char ip[15 + 1];
 } SaveData_t;
 
 extern SaveData_t savedata;
@@ -203,7 +204,7 @@ extern Battery_t bat;
 
 static const char FEATURES_TEMPLATE[] =
 {
-		"switch1$Luce,status$%d;"
+		"switch1$Light,status$%d;"
 		"sensor1$Tensione alimentazione$%d,%dV;"
 };
 

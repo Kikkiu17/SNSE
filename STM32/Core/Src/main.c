@@ -25,6 +25,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "../ESP8266/esp8266.h"
+#include "../Flash/flash.h"
 #include "../wifihandler/wifihandler.h"
 #include "../wifihandler/userhandlers.h"
 #include "../credentials.h"
@@ -103,6 +104,14 @@ int main(void)
 		  __asm__("nop");
   }
 
+#ifdef ENABLE_SAVE_TO_FLASH
+  FLASH_ReadSaveData();
+  WIFI_SetName(&wifi, savedata.name);
+
+  if (savedata.ip[0] >= '0' && savedata.ip[0] <= '9')
+    WIFI_SetIP(&wifi, savedata.ip); // Set previously assigned IP
+#endif
+
   memcpy(wifi.SSID, ssid, strlen(ssid));
   memcpy(wifi.pw, password, strlen(password));
   WIFI_Connect(&wifi);
@@ -111,7 +120,11 @@ int main(void)
 
   WIFI_StartServer(&wifi, SERVER_PORT);
 
-  SWITCH_Init(&(switches[SW0]), false, GPIOA, 0);
+  // Save current IP (to make it "static")
+  strncpy(savedata.ip, wifi.IP, 15);
+  FLASH_WriteSaveData();
+
+  SWITCH_Init(&(switches[RELAY_SWITCH]), false, GPIOA, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -125,7 +138,7 @@ int main(void)
 
       if ((key_ptr = WIFI_RequestHasKey(&conn, "wifi")))
 			  WIFIHANDLER_HandleWiFiRequest(&conn, key_ptr);
-		  else if ((key_ptr = WIFI_RequestHasKey(&conn, "switch")))
+      else if ((key_ptr = WIFI_RequestHasKey(&conn, "switch")))
 			  WIFIHANDLER_HandleSwitchRequest(&conn, key_ptr);
 
 		  if ((key_ptr = WIFI_RequestHasKey(&conn, "time")))
@@ -141,15 +154,15 @@ int main(void)
 		  }
 	  }
 	  // OPTIONAL
-	  else if (wifistatus != TIMEOUT)
+	  else if (status != TIMEOUT)
 	  {
-		  sprintf(wifi.buf, "Status: %d", wifistatus);
+		  sprintf(wifi.buf, "Status: %d", status);
 		  WIFI_ResetComm(&wifi, &conn);
 		  WIFI_SendResponse(&conn, "500 Internal server error", wifi.buf, strlen(wifi.buf));
 	  }
 
 	  // OPTIONAL
-	  WIFI_ResetConnectionIfError(&wifi, &conn, wifistatus);
+	  WIFI_ResetConnectionIfError(&wifi, &conn, status);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -220,8 +233,7 @@ void Error_Handler(void)
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
   * @brief  Reports the name of the source file and the source line number
   *         where the assert_param error has occurred.
