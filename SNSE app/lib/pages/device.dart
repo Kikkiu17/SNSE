@@ -685,10 +685,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
         String buttonText = addon.split(dataSeparator)[1];
         addons.add(
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Color.alphaBlend(Colors.white.withAlpha(150), Theme.of(context).colorScheme.inversePrimary),
-              foregroundColor: Theme.of(context).colorScheme.primary,
-            ),
             child: Text(buttonText),
             onPressed: () async {
               await widget.device.client.stopSendingLoop();
