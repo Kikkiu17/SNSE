@@ -8,7 +8,14 @@
 #include "wifihandler.h"
 #include "../Flash/flash.h"
 
-Notification_t notification;
+Notification_t notification =
+{
+	.text = NULL,
+	.size = 0,
+	.read = 0,
+	.clear_if_read = true
+};
+
 Switch_t switches[NUMBER_OF_SWITCHES];
 
 void SWITCH_Init(Switch_t* sw, bool inverted, GPIO_TypeDef* port, uint16_t pin)
@@ -76,12 +83,14 @@ void NOTIFICATION_Set(char* text, uint8_t size)
 {
 	notification.text = text;
 	notification.size = size;
+	notification.read = false;
 }
 
 void NOTIFICATION_Reset()
 {
 	notification.text = NULL;
 	notification.size = 0;
+	notification.read = true;
 }
 
 Response_t WIFIHANDLER_HandleNotificationRequest(Connection_t* conn, char* key_ptr)
@@ -91,7 +100,13 @@ Response_t WIFIHANDLER_HandleNotificationRequest(Connection_t* conn, char* key_p
 		if (notification.size == 0 || notification.text == NULL)
 			return WIFI_SendResponse(conn, "200 OK", "Vuoto", 5);
 		else
+		{
 			return WIFI_SendResponse(conn, "200 OK", notification.text, notification.size);
+			if (notification.clear_if_read)
+				NOTIFICATION_Reset();
+			else
+				notification.read = true;
+		}
 	}
 
 	return WIFI_SendResponse(conn, "400 Bad Request", "Sono supportate solo richieste NOTIFICATION GET", 47);

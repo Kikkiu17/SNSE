@@ -5,7 +5,7 @@
   <Files>
     <Enabled>True</Enabled>
     <DeleteExtractedOnExit>False</DeleteExtractedOnExit>
-    <CompressFiles>True</CompressFiles>
+    <CompressFiles>False</CompressFiles>
     <Files>
       <File>
         <Type>3</Type>
