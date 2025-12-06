@@ -101,28 +101,41 @@ int main(void)
   if (ESP8266_Init() == TIMEOUT)
   {
 	  while (1)
-		  __asm__("nop");
+		  __NOP();
   }
 
 #ifdef ENABLE_SAVE_TO_FLASH
   FLASH_ReadSaveData();
-  WIFI_SetName(&wifi, savedata.name);
-
-  if (savedata.ip[0] >= '0' && savedata.ip[0] <= '9')
-    WIFI_SetIP(&wifi, savedata.ip); // Set previously assigned IP
+  if (WIFI_SetName(&wifi, savedata.name) == ERR)
+    WIFI_SetName(&wifi, (char*)ESP_NAME); // happens when there is nothing saved to FLASH, so set default name
+  WIFI_SetIP(&wifi, savedata.ip);         // if there is nothing saved to FLASH, this function does nothing
+#else
+  WIFI_SetName(&wifi, (char*)ESP_NAME);
 #endif
 
   memcpy(wifi.SSID, ssid, strlen(ssid));
   memcpy(wifi.pw, password, strlen(password));
-  WIFI_Connect(&wifi);
-  WIFI_SetName(&wifi, (char*)ESP_NAME);
+  if (WIFI_Connect(&wifi) == FAIL)
+  {
+    // restore ESP to factory defaults and try again
+    if (ESP8266_Restore() == OK)
+      NVIC_SystemReset();
+    else
+      // error while restoring ESP
+      while (1) { __NOP(); }
+  }
   WIFI_EnableNTPServer(&wifi, 2);
 
-  WIFI_StartServer(&wifi, SERVER_PORT);
-
-  // Save current IP (to make it "static")
+  /*
+  The first time the ESP connects to WiFi, the gateway assigns an IP to it, which now gets saved to FLASH.
+  The next time the ESP connects, the gateway could assign a different IP; to prevent this, the function
+  WIFI_SetIP(&wifi, savedata.ip); loads the IP previously saved on FLASH so that the ESP tries to connect
+  and get this IP
+  */
   strncpy(savedata.ip, wifi.IP, 15);
   FLASH_WriteSaveData();
+
+  WIFI_StartServer(&wifi, SERVER_PORT);
 
   SWITCH_Init(&(switches[RELAY_SWITCH]), false, GPIOA, 0);
   /* USER CODE END 2 */
