@@ -126,13 +126,15 @@ static const char ESP_NAME[] = "SNSE device";
 #define RECONNECTION_DELAY_MINS 1	// minutes
 #define RECONNECTION_DELAY_MILLIS RECONNECTION_DELAY_MINS * 60000
 
-typedef struct notif
+typedef struct
 {
 	char* text;
 	uint8_t size;
+	bool read;
+	bool clear_if_read;
 } Notification_t;
 
-extern Notification_t notification;
+extern Notification_t notification;	// defined in wifihandler/wifihandler.c
 
 // ==========================================================================================
 // 										SAVE DATA

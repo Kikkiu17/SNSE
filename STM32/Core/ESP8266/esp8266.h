@@ -27,6 +27,7 @@ typedef enum
 	OK 			= 2,
 	NULVAL		= 3,
 	WAITING		= 4,
+	FAIL		= 5,
 } Response_t;
 
 typedef struct
@@ -59,6 +60,7 @@ char* ESP8266_GetBuffer(void);
 void ESP8266_HardwareReset(void);
 Response_t ESP8266_ATReset(void);
 Response_t ESP8266_CheckAT(void);
+Response_t ESP8266_Restore(void);
 
 Response_t ESP8266_WaitForStringCNDTROffset(char* str, int32_t offset, uint32_t timeout);
 Response_t ESP8266_WaitForString(char* str, uint32_t timeout);
@@ -69,6 +71,12 @@ Response_t ESP8266_SendATCommandResponse(char* cmd, size_t size, uint32_t timeou
 Response_t ESP8266_SendATCommandKeepString(char* cmd, size_t size, uint32_t timeout);
 Response_t ESP8266_SendATCommandKeepStringNoResponse(char* cmd, size_t size);
 
+/*
+If the ESP is not connected to WiFi, this functions connects it to the WiFi specified by SSID and password
+in the passed WIFI_t struct.
+If it's already connected, it saves the current IP and SSID in the WIFI_t structure.
+Note that this is a blocking function: if not connected to WiFi, it blocks until it connects or it timeouts (15 seconds)
+*/
 Response_t WIFI_Connect(WIFI_t* wifi);
 Response_t WIFI_GetConnectionInfo(WIFI_t* wifi);
 Response_t WIFI_SetCWMODE(uint8_t mode);

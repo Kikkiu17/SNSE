@@ -42,9 +42,15 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+file(GLOB_RECURSE USER_LIBS
+    "${CMAKE_SOURCE_DIR}/Core/ESP8266/*.c"
+    "${CMAKE_SOURCE_DIR}/Core/Flash/*.c"
+    "${CMAKE_SOURCE_DIR}/Core/wifihandler/*.c"
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
+    ${USER_LIBS}
 )
 
 # Add include paths

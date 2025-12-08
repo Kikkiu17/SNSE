@@ -2,7 +2,6 @@
 *.ld
 Debug/
 Release/
-*.s
 build/
 CMakeCache.txt
 .clangd
