@@ -329,6 +329,10 @@ class Device {
         ),
         actions: [
           TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text("cancel_text".tr()),
+          ),
+          TextButton(
             onPressed: () {
 
               if (userInputName == "") {
@@ -348,10 +352,6 @@ class Device {
               Navigator.pop(context, true);
             },
             child: const Text('OK'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text("cancel_text".tr()),
           )
         ],
       )

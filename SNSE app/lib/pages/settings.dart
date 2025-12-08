@@ -356,9 +356,6 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           ),
           ListTile(
             title: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurface,
-              ),
               child: Text("settings.restore_to_default".tr()),
               onPressed: () {
                 setState(() {

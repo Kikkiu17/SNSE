@@ -105,7 +105,7 @@ class _HomePageState extends State<HomePage> {
         cardList.add(
         ListTile(
             title: ElevatedButton(
-              child: Text(context.tr("update_text")),
+                child: Text(context.tr("update_text")),
               onPressed: () {
                 setState(() {
                   _updateExistingIDs = true;
@@ -256,6 +256,10 @@ class _HomePageState extends State<HomePage> {
               ),
               actions: [
                 TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text("cancel_text".tr()),
+                ),
+                TextButton(
                   onPressed: () async {
                     if (newDeviceIp == "") {
                       showPopupOK(context, "device.error_text".tr(), "device.ip_not_empty".tr());
@@ -277,10 +281,6 @@ class _HomePageState extends State<HomePage> {
                     }
                   },
                   child: Text("add_text".tr()),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text("cancel_text".tr()),
                 )
               ],
             )
