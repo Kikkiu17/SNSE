@@ -237,6 +237,7 @@ Response_t ESP8266_ResetWaitReady(void)
 		if (START_ATTEMPTS != -1 && attempt_number > START_ATTEMPTS)
 			return TIMEOUT;
 		attempt_number++;
+		ESP8266_SendATCommandKeepString("AT+RST\r\n", 8, AT_SHORT_TIMEOUT);
 		// hardware reset
 		HAL_GPIO_WritePin(ESPRST_GPIO_Port, ESPRST_Pin, 0);
 		HAL_Delay(1);
@@ -380,6 +381,9 @@ Response_t WIFI_Connect(WIFI_t* wifi)
 	{
 		// ESP is not connected
 		// connect the ESP to WiFi
+
+		ESP8266_SendATCommandResponse("AT+CWAUTOCONN=0\r\n", 17, AT_SHORT_TIMEOUT); 
+		ESP8266_SendATCommandResponse("AT+CWQAP\r\n", 10, AT_SHORT_TIMEOUT);
 
 		// set ESP as STATION
 		if (WIFI_SetCWMODE(1) != OK) return FAIL;
