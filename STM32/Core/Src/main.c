@@ -115,15 +115,14 @@ int main(void)
 
   memcpy(wifi.SSID, ssid, strlen(ssid));
   memcpy(wifi.pw, password, strlen(password));
-  if (WIFI_Connect(&wifi) == FAIL)
+  HAL_GPIO_WritePin(STATUS_Port, STATUS_Pin, 1);
+  uint32_t connect_status = WIFI_Connect(&wifi);
+  if (connect_status == FAIL || connect_status == ERROR)
   {
-    // restore ESP to factory defaults and try again
-    if (ESP8266_Restore() == OK)
-      NVIC_SystemReset();
-    else
-      // error while restoring ESP
-      while (1) { __NOP(); }
+    // try again
+    NVIC_SystemReset();
   }
+  HAL_GPIO_WritePin(STATUS_Port, STATUS_Pin, 0);
   WIFI_EnableNTPServer(&wifi, 2);
 
   /*

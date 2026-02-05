@@ -1,5 +1,4 @@
 *.launch
-*.ld
 Debug/
 Release/
 build/

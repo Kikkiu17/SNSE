@@ -133,7 +133,7 @@ class TcpClient {
       final completer = Completer<String>();
       _responseQueue.add(completer);
       _socket!.write("$data\r\n");
-      print("trying: $data\r\n");
+      debug.log("trying: $data\r\n");
 
       return await completer.future.timeout(Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()), onTimeout: () {
         _responseQueue.remove(completer);
@@ -176,11 +176,11 @@ class TcpClient {
       final start = DateTime.now();
 
       try {
-        final notification = await sendData("GET ?notification\n");
+        final notification = await sendData("GET ?notification");
         handleNotification(notification, context);
 
         String features = linkedDevice!.features.join(";");
-        String newFeatures = await sendData("GET ?features\n");
+        String newFeatures = await sendData("GET ?features");
         // newFeatures.toLowerCase().contains("vuoto") means notification data
         if (newFeatures.contains("200 OK") && !newFeatures.toLowerCase().contains("vuoto")) {
           features = newFeatures;

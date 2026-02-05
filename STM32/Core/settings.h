@@ -69,9 +69,7 @@ typedef uint64_t FLASH_DATATYPE;
 static const char ESP_NAME[] = "SNSE device";
 #define SERVER_PORT 34677
 
-// NOT SUPPORTED:
-//static const char ESP_HOSTNAME[] = "ESPDEVICE002"; // template: ESPDEVICExxx
-//static const char ESP_IP[] = "192.168.1.38";
+static const char ESP_HOSTNAME[] = "ESPDEVICExxx"; // template: ESPDEVICExxx
 
 #define AT_SHORT_TIMEOUT 250
 #define AT_MEDIUM_TIMEOUT 500
