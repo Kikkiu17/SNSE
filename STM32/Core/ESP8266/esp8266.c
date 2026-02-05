@@ -526,9 +526,7 @@ Response_t WIFI_SetIP(WIFI_t* wifi, char* ip)
 	memset(wifi->buf, 0, WIFI_BUF_MAX_SIZE);
 	snprintf(wifi->buf, WIFI_BUF_MAX_SIZE, "AT+CIPSTA=\"%s\"\r\n", ip);
 	Response_t atstatus = ESP8266_SendATCommandResponse(wifi->buf, strlen(wifi->buf), AT_SHORT_TIMEOUT);
-	if (atstatus != OK) return atstatus;
-	HAL_GPIO_WritePin(STATUS_Port, STATUS_Pin, 1);
-	return WIFI_GetIP(wifi); // get the IP of the ESP to verify its change
+	return atstatus;
 }
 
 Response_t WIFI_ReceiveRequest(WIFI_t* wifi, Connection_t* conn, uint32_t timeout)
@@ -723,57 +721,90 @@ void WIFI_ResetConnectionIfError(WIFI_t* wifi, Connection_t* conn, Response_t wi
 		WIFI_response_sent = false;
 }
 
+static uint8_t getMonth(const char* m)
+{
+    const char* months = "JanFebMarAprMayJunJulAugSepOctNovDec";
+    for (uint8_t i = 0; i < 12; i++)
+    {
+        if (m[0] == months[i*3] && m[1] == months[i*3+1] && m[2] == months[i*3+2])
+            return i + 1;
+    }
+    return 1;
+}
+
+static uint8_t getItalyOffset(uint16_t year, uint8_t month, uint8_t day, uint8_t utc_h)
+{
+    if (month < 3 || month > 10) return 1;
+    if (month > 3 && month < 10) return 2;
+
+    uint8_t lastSunday = 31 - ((5 * year / 4 + 4) - (month == 10 ? 0 : 3)) % 7;
+
+    if (month == 3) // marzo
+        return (day > lastSunday || (day == lastSunday && utc_h >= 1)) ? 2 : 1;
+    
+    if (month == 10) // ottobre
+        return (day > lastSunday || (day == lastSunday && utc_h >= 1)) ? 1 : 2;
+
+    return 1;
+}
+
 Response_t WIFI_GetTime(WIFI_t* wifi)
 {
-	if (wifi == NULL) return NULVAL;
+    if (wifi == NULL) return NULVAL;
+    wifi->last_time_read = uwTick;
+    
+    if (ESP8266_SendATCommandKeepString("AT+CIPSNTPTIME?\r\n", 17, AT_SHORT_TIMEOUT) != OK)
+        return ERR;
 
-	Response_t atstatus = ERR;
+    if (ESP8266_WaitKeepString("OK\r\n", AT_MEDIUM_TIMEOUT) != OK)
+        return ERR;
 
-	wifi->last_time_read = uwTick;
+    char* tag_ptr = strstr((char*)uart_buffer, "+CIPSNTPTIME:");
+    if (tag_ptr)
+    {
+        char* colon = strstr(tag_ptr + 13, ":");
+        if (!colon) return ERR;
 
-	atstatus = ESP8266_SendATCommandKeepString("AT+CIPSNTPTIME?\r\n", 18, AT_SHORT_TIMEOUT);
-	if (atstatus != OK) return atstatus;
+        uint8_t utc_h = (uint8_t)bufferToInt(colon - 2, 2);
+        uint8_t utc_m = (uint8_t)bufferToInt(colon + 1, 2);
+        uint8_t utc_s = (uint8_t)bufferToInt(colon + 4, 2);
+        
+        uint8_t day   = (uint8_t)bufferToInt(colon - 5, 2);
+        uint8_t month = getMonth(colon - 9);
+        uint16_t year = bufferToInt(colon + 7, 4);
 
-	if ((atstatus = ESP8266_WaitKeepString("OK\r\n", AT_MEDIUM_TIMEOUT)) != OK)
-		return atstatus;
+        uint8_t local_h = utc_h + getItalyOffset(year, month, day, utc_h);
+        if (local_h >= 24) local_h -= 24;
 
-	char* start_ptr = NULL;
-	if ((start_ptr = strstr((char*)uart_buffer, "+CIPSNTPTIME:")) != NULL)
-	{
-		// +CIPSNTPTIME:Fri Apr 11 21:52:47 2025\r\nOK
+        snprintf(wifi->time, 9, "%02d:%02d:%02d", 
+                 local_h % 24, 
+                 utc_m % 60, 
+                 utc_s % 60);
 
-		//						v v
-		// +CIPSNTPTIME:Fri Apr 11 21:52:47 2025\r\nOK
-		char* time_start_ptr = strstr(start_ptr + 21, " ");
-		if (time_start_ptr == NULL) return ERR;
-		time_start_ptr += 1;
+        return OK;
+    }
 
-		memcpy(wifi->time, time_start_ptr, 8);
-		wifi->time[8] = '\0';
-	}
-	else return ERR;
-
-	return atstatus;
+    return ERR;
 }
 
 int32_t WIFI_GetTimeHour(WIFI_t* wifi)
 {
 	if (wifi == NULL) return 0;
-	if (uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
+	if ((int32_t)uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
 	return bufferToInt(wifi->time, 2);
 }
 
 int32_t WIFI_GetTimeMinutes(WIFI_t* wifi)
 {
 	if (wifi == NULL) return 0;
-	if (uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
+	if ((int32_t)uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
 	return bufferToInt(wifi->time + 3, 2);
 }
 
 int32_t WIFI_GetTimeSeconds(WIFI_t* wifi)
 {
 	if (wifi == NULL) return 0;
-	if (uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
+	if ((int32_t)uwTick - wifi->last_time_read > 1000) WIFI_GetTime(wifi);	// avoids too many slow reads
 	return bufferToInt(wifi->time + 6, 2);
 }
 
@@ -782,7 +813,7 @@ Response_t WIFI_EnableNTPServer(WIFI_t* wifi, int8_t time_offset)
 	if (wifi == NULL) return NULVAL;
 
 	Response_t atstatus = ERR;
-	if ((atstatus = ESP8266_SendATCommandKeepString("AT+CIPSNTPCFG?\r\n", 17, AT_SHORT_TIMEOUT)) != OK) return atstatus;
+	if ((atstatus = ESP8266_SendATCommandKeepString("AT+CIPSNTPCFG?\r\n", 16, AT_SHORT_TIMEOUT)) != OK) return atstatus;
 
 	char* ptr = NULL;
 	if ((ptr = strstr((char*)uart_buffer, "+CIPSNTPCFG:")) != NULL)
@@ -792,9 +823,9 @@ Response_t WIFI_EnableNTPServer(WIFI_t* wifi, int8_t time_offset)
 			return OK;
 
 		// enable NTP server
-		snprintf(wifi->buf,WIFI_BUF_MAX_SIZE, "AT+CIPSNTPCFG=1,%d\r\n", time_offset);
-		uint8_t tsize = (time_offset < 0) ? 2 : 1;
-		return ESP8266_SendATCommandResponse(wifi->buf, 19 + tsize, AT_SHORT_TIMEOUT);
+		wifi->last_time_read = -1000;
+		snprintf(wifi->buf, WIFI_BUF_MAX_SIZE, "AT+CIPSNTPCFG=1,%d,\"pool.ntp.org\",\"time.nist.gov\"\r\n", time_offset);
+		return ESP8266_SendATCommandResponse(wifi->buf, strlen(wifi->buf), AT_SHORT_TIMEOUT);
 	}
 
 	return ERR;
