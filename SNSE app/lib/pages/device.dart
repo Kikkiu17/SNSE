@@ -133,11 +133,11 @@ class TcpClient {
       final completer = Completer<String>();
       _responseQueue.add(completer);
       _socket!.write("$data\r\n");
-      debug.log("trying: $data\r\n");
+      debug.log("\x1B[33mtrying: $data\r\n\x1B[0m");
 
       return await completer.future.timeout(Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()), onTimeout: () {
         _responseQueue.remove(completer);
-        debug.log('No response within ${customTimeout ?? savedSettings.getUpdateTime()} ms. Request: $data');
+        debug.log('\x1B[31mNo response within ${customTimeout ?? savedSettings.getUpdateTime()} ms. Request: $data\x1B[0m');
         return ""; // Return empty string on timeout
       });
     });
@@ -178,6 +178,8 @@ class TcpClient {
       try {
         final notification = await sendData("GET ?notification");
         handleNotification(notification, context);
+
+        await Future.delayed(const Duration(milliseconds: 8));
 
         String features = linkedDevice!.features.join(";");
         String newFeatures = await sendData("GET ?features");
