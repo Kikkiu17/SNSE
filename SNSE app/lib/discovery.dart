@@ -12,6 +12,7 @@ Future<Device> createDevice(String ip, TcpClient client) async
   device.ip = ip;
 
   // --- GET DEVICE ID ---
+  await Future.delayed(const Duration(milliseconds: 10));
   String response = await client.sendDataRetry("GET ?wifi=ID", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;
@@ -19,6 +20,7 @@ Future<Device> createDevice(String ip, TcpClient client) async
   device.id = response.split("\n")[1];
 
   // --- GET DEVICE NAME ---
+  await Future.delayed(const Duration(milliseconds: 10));
   response = await client.sendDataRetry("GET ?wifi=name", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;
@@ -26,6 +28,7 @@ Future<Device> createDevice(String ip, TcpClient client) async
   device.name = response.split("\n")[1];
   
   // --- GET DEVICE FEATURES ---
+  await Future.delayed(const Duration(milliseconds: 10));
   response = await client.sendDataRetry("GET ?features", connectionRetries);
   if (!response.contains("200 OK")) {
     return device;

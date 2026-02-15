@@ -153,7 +153,7 @@ class TcpClient {
         break;
       }
       debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
-      await Future.delayed(const Duration(milliseconds: 5));
+      await Future.delayed(const Duration(milliseconds: retryDelay));
     }
     return response;
   }
