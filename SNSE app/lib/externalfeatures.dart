@@ -46,6 +46,13 @@ class ListValue {
   final double? data;
 }
 
+// Holds all data points for a single graphed sensor series
+class SeriesData {
+  SeriesData(this.name);
+  final String name;
+  List<ListValue> data = List.empty(growable: true);
+}
+
 class Chart {
   String rawSelectedValue = "";
   String selectedValue = "";
@@ -54,32 +61,84 @@ class Chart {
   bool selectedTimeFrameChanged = false;
   List<String> rawOptions = List.empty(growable: true);
   List<String> translatedOptions = List.empty(growable: true);
-  List<ListValue> data = List.empty(growable: true);
-  String dataUnit = "";
 
-  // EXPECTED DATA SHOULD BE IN THIS FORM: dd/mm/yyyy;hh:mm;sens1;sens2;sens3...
-  // set the below values accordingly - if your data is in the form above, do not change them
+  // Each entry is one graphed sensor series
+  List<SeriesData> series = List.empty(growable: true);
+
+  // Parses a single data line's sensor fields and returns graphed series by index.
+  // Fields with :graph suffix are included; others are skipped.
+  // sensorFields: the semicolon-split parts starting from the first sensor column.
+  // If series list is empty (first line), initializes them from the sensor labels.
+  // timeframe should be "days", "months", or "years" - used to pick the correct series label
+  // Label format in data: value:graph_DayLabel_MonthYearLabel (e.g. 123:graph_W_Wh)
+  // If only one label is provided (e.g. :graph_Wh), it is used for all timeframes.
+  void _parseSensorFields(String time, List<String> sensorFields, String timeframe) {
+    bool initializingSeries = series.isEmpty;
+    int seriesIndex = 0;
+
+    for (String field in sensorFields) {
+      if (field.isEmpty) continue;
+
+      bool isGraphed = field.contains(":graph_");
+      String cleanField = field;
+      String seriesLabel = "Sensor ${seriesIndex + 1}"; // fallback
+
+      if (isGraphed) {
+        int markerPos = field.indexOf(":graph_");
+        String labelPart = field.substring(markerPos + 7); // e.g. "W_Wh"
+        cleanField = field.substring(0, markerPos);
+
+        // Split on first underscore only, so labels themselves can contain underscores
+        int separatorPos = labelPart.indexOf("_");
+
+        // If there is no second label (e.g. "graph_W" with no underscore),
+        // this sensor is only meaningful for the days view — skip it for months/years.
+        if (separatorPos == -1 && timeframe != "days") continue;
+
+        String dayLabel   = separatorPos != -1 ? labelPart.substring(0, separatorPos) : labelPart;
+        String otherLabel = separatorPos != -1 ? labelPart.substring(separatorPos + 1) : labelPart;
+
+        if (timeframe == "days") {
+          seriesLabel = dayLabel;   // e.g. "Potenza (W)"
+        } else {
+          seriesLabel = otherLabel; // e.g. "Energia (Wh)"
+        }
+      }
+
+      // Remove unit if present (e.g. "123 °C" -> "123")
+      List<String> valueSplit = cleanField.split(" ");
+      String rawValue = valueSplit[0];
+
+      if (!isGraphed) continue;
+
+      if (initializingSeries) {
+        series.add(SeriesData(seriesLabel));
+      }
+
+      if (seriesIndex < series.length) {
+        series[seriesIndex].data.add(ListValue(time, double.tryParse(rawValue) ?? 0.0));
+      }
+
+      seriesIndex++;
+    }
+  }
+
+  // EXPECTED DATA SHOULD BE IN THIS FORM: yyyy;sens1:graph_X_Xh;sens2:graph_Y_Yh;...
   final int dayTimeIndex = 1;
-  final int dayValueIndex = 4;
-  Future<void> parseChartDaysData(String rawResponse) async
-  {
-    data = List.empty(growable: true);
+  final int dayFirstSensorIndex = 2;
+  Future<void> parseChartDaysData(String rawResponse) async {
+    series = List.empty(growable: true);
     List<String> rawChartData = rawResponse.split("\n");
-    rawChartData.removeAt(0);
+    rawChartData.removeAt(0); // remove status code line
 
-    if (rawChartData.isNotEmpty)
-    {
+    if (rawChartData.isNotEmpty) {
       for (String line in rawChartData) {
         List<String> parts = line.split(";");
-        if (parts.length > 1) {
+        if (parts.length > dayFirstSensorIndex) {
           try {
             String time = parts[dayTimeIndex];
-            List<String> valueSplit = parts[dayValueIndex].split(" "); // used to remove the unit if present
-            String value = valueSplit[0];
-            if (valueSplit.length > 1) {
-              dataUnit = valueSplit[1];
-            }
-            data.add(ListValue(time, double.tryParse(value) ?? 0.0));
+            List<String> sensorFields = parts.sublist(dayFirstSensorIndex);
+            _parseSensorFields(time, sensorFields, "days");
           } catch (e) {
             debug.log("Error parsing line: $line, error: $e");
           }
@@ -88,29 +147,22 @@ class Chart {
     }
   }
 
-  // EXPECTED DATA SHOULD BE IN THIS FORM: mm/yyyy;sens1;sens2;sens3...
-  // set the below values accordingly - if your data is in the form above, do not change them
+  // EXPECTED DATA SHOULD BE IN THIS FORM: yyyy;sens1:graph_X_Xh;sens2:graph_Y_Yh;...
   final int monthDateIndex = 0;
-  final int monthValueIndex = 3;
-  Future<void> parseChartMonthsData(String rawResponse) async
-  {
-    data = List.empty(growable: true);
+  final int monthFirstSensorIndex = 1;
+  Future<void> parseChartMonthsData(String rawResponse) async {
+    series = List.empty(growable: true);
     List<String> rawChartData = rawResponse.split("\n");
     rawChartData.removeAt(0);
 
-    if (rawChartData.isNotEmpty)
-    {
+    if (rawChartData.isNotEmpty) {
       for (String line in rawChartData) {
         List<String> parts = line.split(";");
-        if (parts.length > 1) {
+        if (parts.length > monthFirstSensorIndex) {
           try {
             String date = parts[monthDateIndex];
-            List<String> valueSplit = parts[monthValueIndex].split(" "); // used to remove the unit if present
-            String value = valueSplit[0];
-            if (valueSplit.length > 1) {
-              dataUnit = valueSplit[1];
-            }
-            data.add(ListValue(date, double.tryParse(value) ?? 0.0));
+            List<String> sensorFields = parts.sublist(monthFirstSensorIndex);
+            _parseSensorFields(date, sensorFields, "months");
           } catch (e) {
             debug.log("Error parsing line: $line, error: $e");
           }
@@ -119,29 +171,22 @@ class Chart {
     }
   }
 
-  // EXPECTED DATA SHOULD BE IN THIS FORM: yyyy;sens1;sens2;sens3...
-  // set the below values accordingly - if your data is in the form above, do not change them
+  // EXPECTED DATA SHOULD BE IN THIS FORM: yyyy;sens1:graph_X_Xh;sens2:graph_Y_Yh;...
   final int yearDateIndex = 0;
-  final int yearValueIndex = 3;
-  Future<void> parseChartYearsData(String rawResponse) async
-  {
-    data = List.empty(growable: true);
+  final int yearFirstSensorIndex = 1;
+  Future<void> parseChartYearsData(String rawResponse) async {
+    series = List.empty(growable: true);
     List<String> rawChartData = rawResponse.split("\n");
     rawChartData.removeAt(0);
 
-    if (rawChartData.isNotEmpty)
-    {
+    if (rawChartData.isNotEmpty) {
       for (String line in rawChartData) {
         List<String> parts = line.split(";");
-        if (parts.length > 1) {
+        if (parts.length > yearFirstSensorIndex) {
           try {
             String date = parts[yearDateIndex];
-            List<String> valueSplit = parts[yearValueIndex].split(" "); // used to remove the unit if present
-            String value = valueSplit[0];
-            if (valueSplit.length > 1) {
-              dataUnit = valueSplit[1];
-            }
-            data.add(ListValue(date, double.tryParse(value) ?? 0.0));
+            List<String> sensorFields = parts.sublist(yearFirstSensorIndex);
+            _parseSensorFields(date, sensorFields, "years");
           } catch (e) {
             debug.log("Error parsing line: $line, error: $e");
           }
@@ -174,7 +219,6 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
     chart.rawOptions = response.split("\n");
     chart.rawOptions.removeAt(0); // removes status code
     chart.rawSelectedValue = chart.rawOptions[chart.translatedOptions.indexOf(chart.selectedValue)];
-
   }
 
   // translate options (like 09/2025 to September)
@@ -192,16 +236,26 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
 
   // handle different timeframes
   if (chart.selectedTimeframe == "days") {
-    chart.parseChartDaysData(response);
+    await chart.parseChartDaysData(response);
   } else if (chart.selectedTimeframe == "months") {
-    chart.parseChartMonthsData(response);
+    await chart.parseChartMonthsData(response);
   } else if (chart.selectedTimeframe == "years") {
-    chart.parseChartYearsData(response);
+    await chart.parseChartYearsData(response);
   }
 
   List<Widget> externalWidgets = List.empty(growable: true);
 
   if (!context.mounted) return List.empty(growable: false);
+
+  // Build one LineSeries per graphed sensor
+  List<CartesianSeries<ListValue, String>> chartSeries = chart.series.map((s) {
+    return LineSeries<ListValue, String>(
+      dataSource: s.data,
+      xValueMapper: (ListValue listValue, _) => listValue.time,
+      yValueMapper: (ListValue listValue, _) => listValue.data,
+      name: s.name,
+    );
+  }).toList();
 
   externalWidgets.add(
     SfCartesianChart(
@@ -218,25 +272,12 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
       primaryXAxis: const CategoryAxis(
         labelRotation: -45,
       ),
-      // Chart title
       title: ChartTitle(text: chart.selectedValue),
-      // Enable legend
-      legend: const Legend(isVisible: true),
-      // Enable tooltip
+      legend: const Legend(isVisible: true, position: LegendPosition.top),
       tooltipBehavior: TooltipBehavior(enable: true),
-      series: <CartesianSeries<ListValue, String>>[
-        LineSeries<ListValue, String>(
-          dataSource: chart.data,
-          xValueMapper: (ListValue listValue, _) => listValue.time,
-          yValueMapper: (ListValue listValue, _) => listValue.data,
-          name: chart.dataUnit,
-          // Enable data label
-          //dataLabelSettings: const DataLabelSettings(isVisible: true)
-        )
-      ]
+      series: chartSeries,
     )
   );
-  // CHART
 
   // VALUE DROPDOWN MENU (like 07/08/2025, September or 2025)
   externalWidgets.add(
@@ -260,7 +301,6 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
           onChanged: (String? newValue) async {
             chart.selectedValue = newValue!;
             chart.rawSelectedValue = chart.rawOptions[chart.translatedOptions.indexOf(chart.selectedValue)];
-
             addListener.value = !addListener.value;
           },
         ),
@@ -288,10 +328,8 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
           }).toList(),
           onChanged: (String? newValue) async {
             chart.selectedTimeframeTranslated = newValue!;
-
             chart.selectedTimeframe = remoteTimeframes[translatedTimeframes.indexOf(newValue)];
             chart.selectedTimeFrameChanged = true;
-
             addListener.value = !addListener.value;
           },
         ),
@@ -320,7 +358,6 @@ Future<List<Widget>> getExternalFeature(String ip, int id, int index, BuildConte
     featuresToReturn.addAll(await getChart(ip, index, context, addListener));
   }
 
-  //externalFeaturesListener.value = !externalFeaturesListener.value;
   return featuresToReturn;
 }
 

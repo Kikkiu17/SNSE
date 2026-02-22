@@ -10,27 +10,28 @@
 #include <iomanip>
 #include <thread>
 
-const int minute_interval = 1;
+const int minute_interval = 5;
 const int server_port = 34677;
-const char* request = "GET ?features";
+const char* request = "GET ?features\r\n";
 const int buf_size = 4096;
 
-struct Device {
-    std::string ip;
-    int sensor_count;
-};
-
-std::vector<Device> loadDevices(const std::string& filename) {
-    std::vector<Device> devices;
+// Loads a plain list of IPs, one per line:
+//   xxx.xxx.xxx.xxx
+//   yyy.yyy.yyy.yyy
+std::vector<std::string> loadDevices(const std::string& filename) {
+    std::vector<std::string> ips;
     std::ifstream infile(filename);
     std::string ip;
-    int count;
 
-    while (infile >> ip >> count) {
-        devices.push_back({ip, count});
+    while (std::getline(infile, ip)) {
+        // strip trailing whitespace/carriage return
+        while (!ip.empty() && (ip.back() == '\r' || ip.back() == ' '))
+            ip.pop_back();
+        if (!ip.empty())
+            ips.push_back(ip);
     }
 
-    return devices;
+    return ips;
 }
 
 std::string getCurrentDateTime() {
@@ -83,15 +84,53 @@ std::string getResponse(const std::string& dev_ip) {
     return response;
 }
 
-std::string getDataString(const std::string& raw_response, int sensor_count) {
+// Counts how many sensors are marked with $graph_ in the response.
+// The response format is:
+//   200 OK\nsensor1$label$value$graph_W_Wh;sensor2$label$value;...
+int countGraphedSensors(const std::string& raw_response) {
+    int count = 0;
+    size_t pos = 0;
+    while ((pos = raw_response.find("$graph_", pos)) != std::string::npos) {
+        count++;
+        pos++;
+    }
+    return count;
+}
+
+std::string getDataString(const std::string& raw_response) {
     std::string save_string = getCurrentDateTime() + ";";
     size_t pos = -1;
 
-    for (int i = 0; i < sensor_count; ++i) {
-        pos = raw_response.find("$", pos + 1);
-        pos = raw_response.find("$", pos + 1);
-        std::string sensor = raw_response.substr(pos + 1, raw_response.find(";", pos) - pos - 1);
-        save_string += sensor + ";";
+    while (true) {
+        // find next sensor block: skip sensor name ($), skip label ($)
+        size_t name_dollar = raw_response.find("$", pos + 1);
+        if (name_dollar == std::string::npos) break;
+
+        size_t label_dollar = raw_response.find("$", name_dollar + 1);
+        if (label_dollar == std::string::npos) break;
+
+        // value runs from after label_dollar to the next $ or ;
+        size_t next_dollar = raw_response.find("$", label_dollar + 1);
+        size_t next_semi   = raw_response.find(";", label_dollar + 1);
+
+        if (next_semi == std::string::npos) break;
+
+        if (next_dollar != std::string::npos && next_dollar < next_semi) {
+            // graphed sensor: value$graph_W_Wh;
+            std::string value      = raw_response.substr(label_dollar + 1, next_dollar - label_dollar - 1);
+            std::string graph_label = raw_response.substr(next_dollar + 1, next_semi - next_dollar - 1);
+
+            // strip unit from value if present (e.g. "81.75 W" -> "81.75")
+            std::string numeric = value.substr(0, value.find(" "));
+            save_string += numeric + ":" + graph_label + ";";
+            pos = next_semi;
+        } else {
+            // non-graphed sensor: skip entirely
+            pos = next_semi;
+        }
+
+        // stop if we've passed the end of the sensor list
+        if (pos == std::string::npos || pos >= raw_response.size()) break;
     }
 
     return save_string;
@@ -118,30 +157,35 @@ int main() {
         last_checked_minute = current_minute;
 
         // reload device list at every update
-        std::vector<Device> devices = loadDevices("devs_list.txt");
+        std::vector<std::string> ips = loadDevices("devs_list.txt");
 
-        for (size_t dev_i = 0; dev_i < devices.size(); ++dev_i) {
-            const std::string& sensor_device_ip = devices[dev_i].ip;
-            int sensor_count = devices[dev_i].sensor_count;
+        for (size_t dev_i = 0; dev_i < ips.size(); ++dev_i) {
+            const std::string& sensor_device_ip = ips[dev_i];
 
             std::cout << "Processing device: " << sensor_device_ip << " i: " << dev_i << std::endl;
 
             std::string response = getResponse(sensor_device_ip);
             std::cout << "response: " << response << std::endl;
 
-            if (response.empty() || response == "") {
+            if (response.empty()) {
                 std::cerr << "No response received from " << sensor_device_ip << ".\n";
                 continue;
             }
 
-            std::string save_string = getDataString(response, sensor_count);
-            std::cout << save_string << std::endl;
-
-            if (save_string.find("500 Internal server error") != std::string::npos ||
-                save_string.find("404 Not Found") != std::string::npos) {
-                std::cout << "Ignoring...\n";
+            if (response.find("500 Internal server error") != std::string::npos ||
+                response.find("404 Not Found") != std::string::npos) {
+                std::cout << "Ignoring error response from " << sensor_device_ip << "\n";
                 continue;
             }
+
+            // skip devices with no graphed sensors
+            if (countGraphedSensors(response) == 0) {
+                std::cout << "No graphed sensors for " << sensor_device_ip << ", skipping.\n";
+                continue;
+            }
+
+            std::string save_string = getDataString(response);
+            std::cout << save_string << std::endl;
 
             std::ofstream outFile("devs/" + sensor_device_ip + ".txt", std::ios::app);
             std::cout << "attempting write to devs/" << sensor_device_ip << ".txt..." << std::endl;

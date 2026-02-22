@@ -42,48 +42,47 @@ public:
 
 std::vector<Pair> pairs;
 
-std::string getUnit(std::string line, int separation_index)
+// Extracts the numeric part from a field that may look like:
+//   "81.75:graph_Potenza (W)_Energia (Wh)"  -> "81.75"
+//   "81.75"                                  -> "81.75"
+std::string stripGraphMarker(const std::string& field)
 {
-    int pos = -1;
-    int i = 0;
-    while (true)
-    {
-        int unit_start = line.find(" ", pos + 1);
-        int unit_end = line.find(";", pos + 1);
-
-        std::string unit = line.substr(unit_start + 1, unit_end - 1 - unit_start);
-
-        if (i == separation_index)
-            return unit;
-
-        i++;
-
-        if ((pos = line.find(";", pos + 1)) == std::string::npos)
-            return "";
-    }
+    size_t colon = field.find(":");
+    if (colon != std::string::npos)
+        return field.substr(0, colon);
+    return field;
 }
 
-std::string getLineSeparatedValue(std::string line, int index)
+// Extracts the graph label from a field.
+// e.g. "81.75:graph_Potenza (W)_Energia (Wh)" -> "graph_Potenza (W)_Energia (Wh)"
+// Returns "" if no graph marker is present.
+std::string getGraphLabel(const std::string& field)
+{
+    size_t colon = field.find(":");
+    if (colon != std::string::npos)
+        return field.substr(colon + 1);
+    return "";
+}
+
+// Returns the Nth semicolon-separated sensor field from a log line,
+// starting after the date+time prefix (first 17 characters: dd/mm/yyyy;hh:mm;).
+// Fields look like: "81.75:graph_Potenza (W)_Energia (Wh)" or just "81.75"
+std::string getLineSeparatedValue(const std::string& sensor_data, int index)
 {
     int pos = -1;
     int i = 0;
     while (true)
     {
         int value_start = pos + 1;
-        int value_end = line.find(" ", pos + 1);
+        int value_end = sensor_data.find(";", pos + 1);
         if (value_end == std::string::npos)
-            value_end = line.find(";", pos + 1);
-        if (value_end == std::string::npos) continue;
-
-        std::string value = line.substr(value_start, value_end - value_start);
+            return "";
 
         if (i == index)
-            return value;
+            return sensor_data.substr(value_start, value_end - value_start);
 
         i++;
-
-        if ((pos = line.find(";", pos + 1)) == std::string::npos)
-            return "";
+        pos = value_end;
     }
 }
 
@@ -99,13 +98,12 @@ void getDays(int client_fd, std::string ip)
     
     std::vector<std::string> days;
     std::string line;
-    std::string date = pairs[1].value; // Expected format: dd/mm/yyyy
     
     while (std::getline(file, line))
     {
         std::string line_date = line.substr(0, line.find(";"));
         if (std::find(days.begin(), days.end(), line_date) == days.end())
-        days.push_back(line_date);
+            days.push_back(line_date);
     }
     
     file.close();
@@ -119,7 +117,7 @@ void getDays(int client_fd, std::string ip)
         {
             response += days[i];
             if (i != days.size() - 1)
-            response += "\n";
+                response += "\n";
         }
         
         sendResponse(client_fd, "200 OK", response);
@@ -177,7 +175,6 @@ std::string getMonths(int client_fd, std::string ip, bool noresponse = false)
 
     std::vector<std::string> months;
     std::string line;
-    std::string date = pairs[1].value; // Expected format: dd/mm/yyyy
 
     while (std::getline(file, line))
     {
@@ -212,106 +209,6 @@ std::string getMonths(int client_fd, std::string ip, bool noresponse = false)
     }
 }
 
-void getAverageDataMonth(int client_fd, std::string ip, std::string month)
-{
-    // average the data of each day
-    std::ifstream file("devs/" + ip + ".txt");
-    
-    if (!file.is_open())
-    {
-        sendResponse(client_fd, "404 Not Found", "No data found\n");
-        return;
-    }
-
-    std::vector<std::string> days;
-    std::string line;
-    std::vector<std::string> units;
-
-    int sensor_number = 0;
-    std::vector<std::vector<float>> days_averaged_sensors;
-
-    bool first = true;
-    std::string current_day = "";
-    int day_i = -1;
-
-    // average data
-    while (std::getline(file, line))
-    {
-        if (first)
-        {
-            first = false;
-            // dd/mm/yyyy;hh:mm;s1;s2;s3...
-            int pos = 16;
-            while (true)
-            {
-                if ((pos = line.find(";", pos + 1)) != std::string::npos)
-                    sensor_number++;
-                else break;
-            }
-            if (sensor_number == 0) return;
-            units.resize(sensor_number);
-            for (int i = 0; i < sensor_number; i++)
-            {
-                units[i] = getUnit(line, i + 2);
-            }
-        }
-
-        std::string linedate = line.substr(0, line.find(";"));
-        std::string linemonth = linedate.substr(3, 2);
-
-        if (linemonth == month)
-        {
-            if (linedate != current_day)
-            {
-                current_day = linedate;
-                days.push_back(linedate);
-                days_averaged_sensors.push_back(std::vector<float>(sensor_number));
-                day_i++;
-            }
-            if (linedate == current_day)
-            {
-                std::string sensor_data = line.erase(0, 17);
-                for (int sens_i = 0; sens_i < sensor_number; sens_i++)
-                {
-                    float parsed_sensor_data = std::stof(sensor_data.substr(0, sensor_data.find(";")));
-                    if (days_averaged_sensors[day_i][sens_i] == 0)
-                        days_averaged_sensors[day_i][sens_i] = parsed_sensor_data;
-                    else
-                        days_averaged_sensors[day_i][sens_i] = (days_averaged_sensors[0][sens_i] + parsed_sensor_data) / 2;
-                }
-            }
-        }
-    }
-    
-    file.close();
-
-    std::string prepared_data = "";
-    // organize data to be sent
-    for (int day_i = 0; day_i < days.size(); day_i++)
-    {
-        std::string data = "";
-        std::string day = days[day_i];
-        std::vector<float> sensors = days_averaged_sensors[day_i];
-
-        data += day + ";";
-        for (int sens_i = 0; sens_i < sensors.size(); sens_i++)
-        {
-            data += std::to_string(sensors[sens_i]) + " " + units[sens_i];
-            if (sens_i != sensors.size() - 1)
-                data += ";";
-        }
-        data += "\n";
-
-
-        prepared_data += data;
-    }
-
-    if (prepared_data == "")
-        sendResponse(client_fd, "404 Not Found", "No data found\n");
-    else
-        sendResponse(client_fd, "200 OK", prepared_data);
-}
-
 int count(std::string line, std::string to_count, int offset)
 {
     int counter = 0;
@@ -328,7 +225,6 @@ int count(std::string line, std::string to_count, int offset)
 
 std::string getTotalDataMonth(int client_fd, std::string ip, std::string month, bool noresponse = false)
 {
-    // get total of each day
     std::ifstream file("devs/" + ip + ".txt");
     
     if (!file.is_open())
@@ -342,7 +238,9 @@ std::string getTotalDataMonth(int client_fd, std::string ip, std::string month, 
 
     int sensor_number = 0;
     std::vector<std::vector<float>> days_total_sensors;
-    std::vector<std::string> units;
+    // Graph labels per sensor, e.g. "graph_Potenza (W)_Energia (Wh)"
+    // Used to reconstruct the output line so the Flutter code can still read labels.
+    std::vector<std::string> graph_labels;
     
     int day_i = -1;
     int line_i = 0;
@@ -361,14 +259,17 @@ std::string getTotalDataMonth(int client_fd, std::string ip, std::string month, 
         if (first)
         {
             first = false;
-            // dd/mm/yyyy;hh:mm;s1;s2;s3...
+            // Count sensors: semicolons after position 16 (past dd/mm/yyyy;hh:mm)
             sensor_number = count(line, ";", 16);
             if (sensor_number == 0) return "";
 
-            units.resize(sensor_number);
+            // Extract graph labels from first line
+            std::string sensor_data = line.substr(17);
+            graph_labels.resize(sensor_number);
             for (int i = 0; i < sensor_number; i++)
             {
-                units[i] = getUnit(line, i + 2);
+                std::string field = getLineSeparatedValue(sensor_data, i);
+                graph_labels[i] = getGraphLabel(field);
             }
         }
 
@@ -389,18 +290,19 @@ std::string getTotalDataMonth(int client_fd, std::string ip, std::string month, 
             {
                 current_day = linedate;
                 days.push_back(linedate);
-                days_total_sensors.push_back(std::vector<float>(sensor_number));
+                days_total_sensors.push_back(std::vector<float>(sensor_number, 0.0f));
                 day_i++;
             }
-            if (linedate == current_day)
+
+            std::string sensor_data = line.substr(17);
+            for (int sens_i = 0; sens_i < sensor_number; sens_i++)
             {
-                std::string sensor_data = line.erase(0, 17);
-                for (int sens_i = 0; sens_i < sensor_number; sens_i++)
-                {
-                    std::string value = getLineSeparatedValue(sensor_data, sens_i);
-                    float parsed_sensor_data = std::stof(value.substr(0, value.find(";")));
-                    days_total_sensors[day_i][sens_i] += parsed_sensor_data * time_interval_calibration_value;
-                }
+                std::string field = getLineSeparatedValue(sensor_data, sens_i);
+                std::string numeric = stripGraphMarker(field);
+                try {
+                    float parsed = std::stof(numeric);
+                    days_total_sensors[day_i][sens_i] += parsed * time_interval_calibration_value;
+                } catch (...) {}
             }
         }
 
@@ -410,23 +312,20 @@ std::string getTotalDataMonth(int client_fd, std::string ip, std::string month, 
     file.close();
 
     std::string prepared_data = "";
-    // organize data to be sent
-    for (int day_i = 0; day_i < days.size(); day_i++)
+    for (int day_i = 0; day_i < (int)days.size(); day_i++)
     {
-        std::string data = "";
-        std::string day = days[day_i];
+        std::string data = days[day_i] + ";";
         std::vector<float> sensors = days_total_sensors[day_i];
 
-        data += day + ";";
-        for (int sens_i = 0; sens_i < sensors.size(); sens_i++)
+        for (int sens_i = 0; sens_i < (int)sensors.size(); sens_i++)
         {
-            data += std::to_string(sensors[sens_i]) + " " + units[sens_i];
-            if (sens_i != sensors.size() - 1)
-                data += ";";
+            // Reattach graph label so downstream (getDataYear) and Flutter can read it
+            std::string value = std::to_string(sensors[sens_i]);
+            if (!graph_labels[sens_i].empty())
+                value += ":" + graph_labels[sens_i];
+            data += value + ";";
         }
         data += "\n";
-
-
         prepared_data += data;
     }
 
@@ -456,7 +355,6 @@ void getYears(int client_fd, std::string ip)
 
     std::vector<std::string> years;
     std::string line;
-    std::string date = pairs[1].value; // Expected format: dd/mm/yyyy
 
     while (std::getline(file, line))
     {
@@ -493,14 +391,11 @@ void getDataYear(int client_fd, std::string ip, std::string year)
 
     std::vector<std::string> months_vec;
     std::vector<std::vector<float>> months_total_sensors;
-    std::vector<std::string> units;
+    std::vector<std::string> graph_labels;
     bool first = true;
     int month_i = 0;
 
     do {
-        int day_pos = 0;
-        first = true;
-
         std::string this_month = months.substr(month_pos + 1, 7);
         std::cout << this_month << std::endl;
 
@@ -508,74 +403,74 @@ void getDataYear(int client_fd, std::string ip, std::string year)
         if (this_year != year) continue;
 
         std::string month_data = getTotalDataMonth(client_fd, ip, this_month, true);
+        if (month_data.empty()) continue;
+
         months_vec.push_back(this_month);
 
+        // Parse each day line in month_data: day;sensor1;sensor2;...\n
+        std::istringstream stream(month_data);
+        std::string day_line;
+        bool month_first = true;
 
-        while ((day_pos = month_data.find("\n", day_pos + 1)) != std::string::npos)
+        while (std::getline(stream, day_line))
         {
-            std::string day_data = month_data.substr(0, day_pos);
-            int sensors_number = count(day_data, ";", 0);
+            if (day_line.empty()) continue;
+
+            // sensor fields start after first ";" (the date)
+            std::string sensor_data = day_line.substr(day_line.find(";") + 1);
+            int sensors_number = count(sensor_data, ";", 0);
 
             if (first)
             {
                 first = false;
-                months_total_sensors.push_back(std::vector<float>(sensors_number));
-                units.resize(sensors_number);
+                graph_labels.resize(sensors_number);
                 for (int i = 0; i < sensors_number; i++)
                 {
-                    units[i] = getUnit(day_data, i + 1);
+                    std::string field = getLineSeparatedValue(sensor_data, i);
+                    graph_labels[i] = getGraphLabel(field);
                 }
             }
 
-            day_data += ";";
-            int day_sensor_pos = 0;
-
-            day_data = day_data.erase(0, day_data.find(";") + 1);
+            if (month_first)
+            {
+                month_first = false;
+                months_total_sensors.push_back(std::vector<float>(sensors_number, 0.0f));
+            }
 
             for (int sens_i = 0; sens_i < sensors_number; sens_i++)
             {
-                day_sensor_pos = day_data.find(";", 0);
-                std::string day_sensor = day_data.substr(0, day_sensor_pos);
-                months_total_sensors[month_i][sens_i] += std::stof(day_sensor);
-
-                day_data.erase(0, day_sensor_pos + 1);
+                std::string field = getLineSeparatedValue(sensor_data, sens_i);
+                std::string numeric = stripGraphMarker(field);
+                try {
+                    months_total_sensors[month_i][sens_i] += std::stof(numeric);
+                } catch (...) {}
             }
-
-            month_data = month_data.erase(0, day_pos + 1);
-            day_pos = 0;
         }
-        
+
         month_i++;
     } while ((month_pos = months.find("\n", month_pos + 1)) != std::string::npos);
 
     std::string prepared_data = "";
-    // organize data to be sent
-    for (int month_i = 0; month_i < months_vec.size(); month_i++)
+    for (int m_i = 0; m_i < (int)months_vec.size(); m_i++)
     {
-        std::string data = "";
-        std::string month = months_vec[month_i];
-        std::vector<float> sensors = months_total_sensors[month_i];
+        std::string data = months_vec[m_i] + ";";
+        std::vector<float> sensors = months_total_sensors[m_i];
 
-        data += month + ";";
-        for (int sens_i = 0; sens_i < sensors.size(); sens_i++)
+        for (int sens_i = 0; sens_i < (int)sensors.size(); sens_i++)
         {
-            data += std::to_string(sensors[sens_i]) + " " + units[sens_i];
-            if (sens_i != sensors.size() - 1)
-                data += ";";
+            std::string value = std::to_string(sensors[sens_i]);
+            if (!graph_labels[sens_i].empty())
+                value += ":" + graph_labels[sens_i];
+            data += value + ";";
         }
         data += "\n";
-
         prepared_data += data;
     }
 
     if (prepared_data == "")
-    {
         sendResponse(client_fd, "404 Not Found", "No data found\n");
-    }
     else
-    {
         sendResponse(client_fd, "200 OK", prepared_data);
-    }
 }
 
 void handleGET(int client_fd, std::string req)
@@ -593,7 +488,7 @@ void handleGET(int client_fd, std::string req)
         size_t pos = 0;
         pos = req.find("&", pos);
 
-        if (pos != std::string::npos) key_value_pairs = 1; // Count first pair
+        if (pos != std::string::npos) key_value_pairs = 1;
 
         while (pos != std::string::npos)
         {
@@ -604,7 +499,6 @@ void handleGET(int client_fd, std::string req)
 
     req.append("&"); // simplify parsing
 
-    // remove trailing \r\n, not needed
     std::size_t pos = req.find("\r\n");
     if (pos != std::string::npos)
         req.replace(pos, 2, "");
@@ -633,9 +527,7 @@ void handleGET(int client_fd, std::string req)
         if (pairs[1].value == "days")
         {
             if (pairs.size() <= 2)
-            {
                 getDays(client_fd, ip);
-            }
             else if (pairs[2].key == "data")
                 getDataDay(client_fd, ip, pairs[2].value);
             else
@@ -674,7 +566,6 @@ int main()
     const int bufferSize = 1024;
     char buffer[bufferSize];
 
-    // Create socket
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
     {
@@ -682,7 +573,6 @@ int main()
         return 1;
     }
 
-    // Bind address
     sockaddr_in address{};
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
@@ -703,7 +593,6 @@ int main()
         return 1;
     }
 
-    // Listen for connections
     if (listen(server_fd, 3) < 0)
     {
         std::cerr << "Listen failed\n";
@@ -726,7 +615,6 @@ int main()
 
         while (true)
         {
-            // Receive request
             ssize_t bytes_received = recv(client_fd, buffer, bufferSize - 1, 0);
             if (bytes_received <= 0) {
                 std::cout << "Client disconnected or error occurred.\n";
@@ -739,25 +627,19 @@ int main()
 
             std::string response_type = request.substr(0, request.find(" "));
 
-            // Respond to specific request
             if (response_type == "GET")
-            {
                 handleGET(client_fd, request);
-            }
             else if (response_type == "POST")
-            {
                 handlePOST(client_fd, request);
-            }
             else
             {
                 const char* response = "Only POST and GET requests are supported\n";
                 send(client_fd, response, strlen(response), 0);
             }
         }
-        close(client_fd); // TIENI CONNESSIONE APERTA
-
+        close(client_fd);
     }
 
-    close(server_fd); // Close server socket
+    close(server_fd);
     return 0;
 }

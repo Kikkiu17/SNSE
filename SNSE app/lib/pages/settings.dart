@@ -14,7 +14,7 @@ const String dataSeparator = "\$";
 
 const int defaultPort = 34677;    // default port for ESP devices
 const int connectionRetries = 4;  // retries to connect to a known device
-const int retryDelay = 10;        // ms
+const int defaultRetryDelay = 25;        // ms
 
 String extServerIP = "";
 const int extServerPort = 34678;

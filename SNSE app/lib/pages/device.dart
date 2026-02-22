@@ -145,7 +145,7 @@ class TcpClient {
     return result;
   }
 
-  Future<String> sendDataRetry(String data, int retries) async {
+  Future<String> sendDataRetry(String data, int retries, int retryDelay) async {
     String response = "";
     for (int i = 0; i < retries; i++) {
       response = await sendData(data);
@@ -153,9 +153,17 @@ class TcpClient {
         break;
       }
       debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
-      await Future.delayed(const Duration(milliseconds: retryDelay));
+      await Future.delayed(Duration(milliseconds: retryDelay));
     }
     return response;
+  }
+
+  // Use this for all POST requests — gives extra time for the STM32
+  // to process the command and respond back through the ESP8266 AT firmware
+  Future<String> sendPost(String data) async {
+    await Future.delayed(const Duration(milliseconds: 250)); // wait for ESP/STM32 to be ready
+    String resp = await sendData(data);
+    return resp;
   }
 
   /// Start the periodic loop that sends two requests every 250ms
@@ -308,7 +316,7 @@ class Device {
 
   Future<String> sendName(String name) async {
     while (!await client.connect(ip, defaultPort, this)) {}
-    String resp = await client.sendData("POST ?wifi=changename&name=$name");
+    String resp = await client.sendPost("POST ?wifi=changename&name=$name");
     client.disconnect();
     return resp.split("\n")[0];
   }
@@ -371,9 +379,9 @@ class Device {
     if (resp.contains("200 OK")) {
       String isPressed = resp.split("\n")[1];
       if (isPressed == "1") {
-        client.sendData("POST ?switch=$id&cmd=0");
+        await client.sendPost("POST ?switch=$id&cmd=0");
       } else if (isPressed == "0") {
-        client.sendData("POST ?switch=$id&cmd=1");
+        await client.sendPost("POST ?switch=$id&cmd=1");
       }
     }
 
@@ -583,7 +591,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
 
   Card _addSensorFeature(String feature)
   {
-    // sensor1:SensorName:SensorData;
+    // sensor1$SensorName$SensorData$OPTIONAL_GRAPH;
     feature.replaceAll(";", "");
     //String sensorId = feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1];
     String sensorName = feature.split(dataSeparator)[1];
@@ -641,7 +649,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   } else {
                     await widget.device.client.stopSendingLoop();
 
-                    String statusCode = await widget.device.client.sendData(dataToSend);
+                    String statusCode = await widget.device.client.sendPost(dataToSend);
                     if (statusCode != "200 OK") {
                       showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                     }
@@ -694,7 +702,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
               if (dataToSend.startsWith("send")) {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
-                String statusCode = await widget.device.client.sendData("$template${textInputController.text}");
+                String statusCode = await widget.device.client.sendPost("$template${textInputController.text}");
                 if (statusCode.split("\n")[0] != "200 OK") {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
@@ -706,7 +714,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
-                  String statusCode = await widget.device.client.sendData(dataToSend);
+                  String statusCode = await widget.device.client.sendPost(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
@@ -816,7 +824,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
                 String timeToSend = "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}-${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}";
-                String statusCode = await widget.device.client.sendData("$template$timeToSend");
+                String statusCode = await widget.device.client.sendPost("$template$timeToSend");
                 if (statusCode.split("\n")[0] != "200 OK") {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
@@ -827,7 +835,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   });
                 } else {
-                  String statusCode = await widget.device.client.sendData(dataToSend);
+                  String statusCode = await widget.device.client.sendPost(dataToSend);
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }

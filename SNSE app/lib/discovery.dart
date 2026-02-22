@@ -12,24 +12,24 @@ Future<Device> createDevice(String ip, TcpClient client) async
   device.ip = ip;
 
   // --- GET DEVICE ID ---
-  await Future.delayed(const Duration(milliseconds: 10));
-  String response = await client.sendDataRetry("GET ?wifi=ID", connectionRetries);
+  await Future.delayed(const Duration(milliseconds: 15));
+  String response = await client.sendDataRetry("GET ?wifi=ID", connectionRetries, 100);
   if (!response.contains("200 OK")) {
     return device;
   }
   device.id = response.split("\n")[1];
 
   // --- GET DEVICE NAME ---
-  await Future.delayed(const Duration(milliseconds: 10));
-  response = await client.sendDataRetry("GET ?wifi=name", connectionRetries);
+  await Future.delayed(const Duration(milliseconds: 15));
+  response = await client.sendDataRetry("GET ?wifi=name", connectionRetries, 100);
   if (!response.contains("200 OK")) {
     return device;
   }
   device.name = response.split("\n")[1];
   
   // --- GET DEVICE FEATURES ---
-  await Future.delayed(const Duration(milliseconds: 10));
-  response = await client.sendDataRetry("GET ?features", connectionRetries);
+  await Future.delayed(const Duration(milliseconds: 15));
+  response = await client.sendDataRetry("GET ?features", connectionRetries, 100);
   if (!response.contains("200 OK")) {
     return device;
   }
@@ -88,7 +88,7 @@ Future<List<Device>> discoverDevices(List<String> ips) async
       continue;
     }
 
-    String response = await client.sendDataRetry("GET ?wifi=IP", connectionRetries);
+    String response = await client.sendDataRetry("GET ?wifi=IP", connectionRetries, 100);
     
     try {
       if (response.contains("200 OK")) {
