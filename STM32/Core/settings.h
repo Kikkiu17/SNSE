@@ -16,13 +16,15 @@ typedef uint8_t bool;
 #define false 0
 
 // CHANGE THESE SETTINGS ACCORDING TO YOUR SETUP!!!
-#define STM_UART huart1
-#define UART_DMA_CHANNEL DMA1_Channel1
-#define ESP_RST_PORT ESPRST_GPIO_Port
-#define ESP_RST_PIN ESPRST_Pin
+#define STM_UART					huart1
+#define UART_DMA_CHANNEL_HANDLE		DMA1_Channel2
+#define UART_DMA_LL_CHANNEL			LL_DMA_CHANNEL_2
+#define UART_DMA_TYPEDEF			DMA1
+#define ESP_RST_PORT				ESPNRST_GPIO_Port
+#define ESP_RST_PIN					ESPNRST_Pin
 
-#define STATUS_Port STATUS_LED_GPIO_Port
-#define STATUS_Pin STATUS_LED_Pin
+#define STATUS_Port					STATUS_LED_GPIO_Port
+#define STATUS_Pin					STATUS_LED_Pin
 
 // if START_ATTEMPTS is set to -1, the program won't start until it receives
 // "ready" from the ESP
@@ -96,13 +98,10 @@ static const char ESP_HOSTNAME[] = "ESPDEVICExxx"; // template: ESPDEVICExxx
 /**
  * WIFI_BUF_MAX_SIZE
  *
- * contains short commands to be sent to the ESP, for example to connect it to WiFi, to get the current IP...
- * (check esp8266.c)
- * if you don't use it directly, it can be left at the default value.
- * NOTE: this can contain the network SSID and PASSWORD, so if those strings are larger than this buffer,
- * the network name and/or its password will be truncated, resulting in no WiFi connection!
+ * the longest content is usually the FEATURES array, so the minimum size should be the size of
+ * FEATURES_TEMPLATE. usually this is the reason of most hard faults, so try increasing it
  */
-#define WIFI_BUF_MAX_SIZE 128
+#define WIFI_BUF_MAX_SIZE 256
 
 /**
  * UART_BUFFER_SIZE
@@ -177,7 +176,7 @@ extern SaveData_t savedata;
  * sensor				sensorX$text$%d text
  * switch				switchX$text,status$%d								switchX$switch_name,status$%d,sensor$sensor_name$%d
  *		status has to be 0 or 1, according to the switch state
- * textinut				textinputX$default_text								textinputX$txt_name,button$btn_name$send<command> (without a space)
+ * textinput				textinputX$default_text								textinputX$txt_name,button$btn_name$send<command> (without a space)
  * 		text inside the textinput field will be appended at the end of the command to be sent
  * timepicker			timepicker$%s (time data, should be hh:mm-hh:mm)	timepicker$%s,button$btn_name$send<command>
  * timestamp			timestampX$text$d text
@@ -188,6 +187,15 @@ extern SaveData_t savedata;
  *
  * 		external features:
  * 		1 = GRAPH
+ *			to mark a SENSOR to be put on the graph, append:
+ *			$graph_LineLabel (unit)
+ *			LineLabel will be the label of the graph data. this unit will be used for the DAYS time frame.
+ *
+ *			if you need another unit for MONTHS and YEARS, append:
+ *			$graph_LineLabel1 (unit1)_LineLabel2 (unit2)
+ *			LineLabel1 and unit1 will be used for DAYS; LineLabel2 and unit2 will be used for MONTHS and YEARS
+ *
+ *			example: "sensor1$Power$%d W$graph_Average power (W)_Energy (Wh);"
  *
  * 		NOTE: external features will only be updated ONCE, every time the device is loaded in the app. The user can manually refresh the data.
  */
@@ -204,8 +212,8 @@ extern Battery_t bat;
 
 static const char FEATURES_TEMPLATE[] =
 {
-		"switch1$Light,status$%d;"
-		"sensor1$Tensione alimentazione$%d,%dV;"
+	"switch1$Light,status$%d;"
+	"sensor1$Tensione alimentazione$%d,%dV;"
 };
 
 #endif /* SETTINGS_H_ */

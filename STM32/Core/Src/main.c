@@ -152,6 +152,10 @@ int main(void)
 			  WIFIHANDLER_HandleWiFiRequest(&conn, key_ptr);
       else if ((key_ptr = WIFI_RequestHasKey(&conn, "switch")))
 			  WIFIHANDLER_HandleSwitchRequest(&conn, key_ptr);
+      else if ((key_ptr = WIFI_RequestHasKey(&conn, "features")))
+				  WIFIHANDLER_HandleFeaturePacket(&conn, (char*)FEATURES_TEMPLATE);
+      else if ((key_ptr = WIFI_RequestHasKey(&conn, "notification")))
+        WIFIHANDLER_HandleNotificationRequest(&conn, key_ptr);
 
 		  if ((key_ptr = WIFI_RequestHasKey(&conn, "time")))
 		  {
