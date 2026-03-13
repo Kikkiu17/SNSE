@@ -54,6 +54,7 @@ class SeriesData {
 }
 
 class Chart {
+  String devIp = "";
   String rawSelectedValue = "";
   String selectedValue = "";
   String selectedTimeframeTranslated = translatedTimeframes[0];
@@ -208,9 +209,10 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
 
   String response = "";
 
-  if (chart.selectedValue == "" || chart.selectedTimeFrameChanged) {
+  if (chart.selectedValue == "" || chart.selectedTimeFrameChanged || chart.devIp != ip) {
     chart.selectedTimeFrameChanged = false;
     // populate fields for the first time
+    chart.devIp = ip;
     response = await extServer.sendData("GET ?dev=$ip&time=${chart.selectedTimeframe}");
     chart.translatedOptions = response.split("\n");
     chart.translatedOptions.removeAt(0);  // removes status code
