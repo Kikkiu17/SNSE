@@ -6,6 +6,7 @@
  */
 
 #include "esp8266.h"
+#include "stm32g030xx.h"
 #include "stm32g0xx_hal_dma.h"
 #include "stm32g0xx_hal_uart.h"
 #include "stm32g0xx_hal_uart_ex.h"
@@ -82,8 +83,8 @@ Response_t ESP8266_WaitForStringCNDTROffset(char* str, int32_t offset, uint32_t 
 			return ERR;
 		}
 
-		if (UART_BUFFER_SIZE - UART_DMA_CHANNEL->CNDTR > (offset < 0) ? -offset : offset)
-			if (strstr((char*)uart_buffer + (UART_BUFFER_SIZE - UART_DMA_CHANNEL->CNDTR) + offset, str) == NULL)
+		if (UART_BUFFER_SIZE - UART_DMA_CHANNEL_HANDLE->CNDTR > (offset < 0) ? -offset : offset)
+			if (strstr((char*)uart_buffer + (UART_BUFFER_SIZE - UART_DMA_CHANNEL_HANDLE->CNDTR) + offset, str) == NULL)
 				continue;
 
 		ESP8266_ClearBuffer();
@@ -193,13 +194,13 @@ Response_t ESP8266_Init(void)
 
 void ESP8266_ClearBuffer(void)
 {
-	__HAL_DMA_DISABLE(STM_UART.hdmarx);
-	memset((char*)uart_buffer, 0, UART_BUFFER_SIZE + 1 - UART_DMA_CHANNEL->CNDTR);
-	UART_DMA_CHANNEL->CNDTR = UART_BUFFER_SIZE;		// reset CNDTR so DMA starts writing from index 0
+	LL_DMA_DisableChannel(UART_DMA_TYPEDEF, UART_DMA_LL_CHANNEL);
+	memset((char*)uart_buffer, 0, UART_BUFFER_SIZE + 1 - UART_DMA_CHANNEL_HANDLE->CNDTR);
+	UART_DMA_CHANNEL_HANDLE->CNDTR = UART_BUFFER_SIZE;		// reset CNDTR so DMA starts writing from index 0
 	__HAL_UART_CLEAR_OREFLAG(&STM_UART);
     __HAL_UART_CLEAR_NEFLAG(&STM_UART);
     __HAL_UART_CLEAR_FEFLAG(&STM_UART);
-	__HAL_DMA_ENABLE(STM_UART.hdmarx);
+	LL_DMA_EnableChannel(UART_DMA_TYPEDEF, UART_DMA_LL_CHANNEL);
 }
 
 char* ESP8266_GetBuffer(void)
@@ -239,9 +240,9 @@ Response_t ESP8266_ResetWaitReady(void)
 		attempt_number++;
 		ESP8266_SendATCommandKeepString("AT+RST\r\n", 8, AT_SHORT_TIMEOUT);
 		// hardware reset
-		HAL_GPIO_WritePin(ESPRST_GPIO_Port, ESPRST_Pin, 0);
+		HAL_GPIO_WritePin(ESP_RST_PORT, ESP_RST_PIN, 0);
 		HAL_Delay(1);
-		HAL_GPIO_WritePin(ESPRST_GPIO_Port, ESPRST_Pin, 1);
+		HAL_GPIO_WritePin(ESP_RST_PORT, ESP_RST_PIN, 1);
 
 		HAL_GPIO_WritePin(STATUS_Port, STATUS_Pin, 1);
 		start_ok = ESP8266_WaitForStringCNDTROffset("ready", -7, 5000);
