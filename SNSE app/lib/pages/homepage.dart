@@ -36,7 +36,6 @@ class _HomePageState extends State<HomePage> {
   static List<String> _existingIPandIDs = List.empty(growable: true);
   static List<String> _manuallyAddedIPs = List.empty(growable: true);
 
-  //static DevicePage? page;
   static List<Widget> pages = List.filled(maxPages, loadingTile, growable: false);
   static Device _selectedDevice = Device();
   static int _selectedIndex = 0;
@@ -45,6 +44,10 @@ class _HomePageState extends State<HomePage> {
   bool darkTheme = false;
   bool firstRun = true;
   late Locale lastLocale;
+
+  // Tracks how many devices have been found so far during an active scan.
+  // Reset to null when not scanning so the badge is hidden.
+  int? _foundDeviceCount;
 
 @override
   void initState() {
@@ -72,9 +75,8 @@ class _HomePageState extends State<HomePage> {
     return item.cast<String>();
   }
 
-  Future<void> _createDeviceList() async
-  {
-   if (_updateExistingIDs) {
+  Future<void> _createDeviceList() async {
+    if (_updateExistingIDs) {
       _updateExistingIDs = false;
       _existingIPandIDs = await _getData();
       if (_manuallyAddedIPs.isNotEmpty && _existingIPandIDs.isNotEmpty) {
@@ -82,66 +84,77 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
+      _foundDeviceCount = 0;  // show 0 immediately so the badge appears before results arrive
       pages[homePageIndex] = loadingTile;
     });
 
-    // cerca nuovi dispositivi e crea le tile
-    discoverDevices(_existingIPandIDs).then((deviceList) {
-      if (!mounted) return; // don't use context if the widget isn't mounted
-      _existingIPandIDs = List.empty(growable: true);
-      List<Widget> cardList = List.empty(growable: true);
-      List<String> ipsAndIds = List.empty(growable: true);
-      for (Device dev in deviceList) {
-        cardList.add(_createDeviceTile(dev, context));
-        cardList.add(
-          const Padding(padding: EdgeInsets.only(top: 8.0))
-        );
-        ipsAndIds.add("${dev.ip};${dev.id}");
-      }
+    final deviceList = await discoverDevices(
+      _existingIPandIDs,
+      onScanComplete: (ipCount) {
+        // Network scan done: show how many IPs responded.
+        if (mounted) setState(() { _foundDeviceCount = ipCount; });
+      },
+      onDeviceFound: (count) {
+        // A device finished connecting: update to actual connected count.
+        if (mounted) setState(() { _foundDeviceCount = count; });
+      },
+    );
 
-      if (cardList.isNotEmpty) {
-        // list update button
-        cardList.add(
-        ListTile(
-            title: ElevatedButton(
-                child: Text(context.tr("update_text")),
-              onPressed: () {
-                setState(() {
-                  _updateExistingIDs = true;
-                  _createDeviceList();
-                });
-              }
-            )
-          )
-        );
-      } else {
-        cardList.add(grayTextCenteredTile(context.tr("no_device_found")));
-      }
+    if (!mounted) return;
 
-      // discovery button
+    // Do NOT reset _foundDeviceCount — the badge stays visible on the homepage.
+
+    _existingIPandIDs = List.empty(growable: true);
+    List<Widget> cardList = List.empty(growable: true);
+    List<String> ipsAndIds = List.empty(growable: true);
+
+    for (Device dev in deviceList) {
+      cardList.add(_createDeviceTile(dev, context));
+      cardList.add(const Padding(padding: EdgeInsets.only(top: 8.0)));
+      ipsAndIds.add("${dev.ip};${dev.id}");
+    }
+
+    if (cardList.isNotEmpty) {
+      // list update button
       cardList.add(
       ListTile(
           title: ElevatedButton(
-            child: Text(context.tr("discover_devices_text")),
+              child: Text(context.tr("update_text")),
             onPressed: () {
               setState(() {
-                _updateExistingIDs = false;
+                _updateExistingIDs = true;
                 _createDeviceList();
               });
             }
           )
         )
       );
+    } else {
+      print("nope");
+      cardList.add(grayTextCenteredTile(context.tr("no_device_found")));
+    }
 
-      _saveItem(ipsAndIds);  // save found device list
+    // discovery button
+    cardList.add(
+    ListTile(
+        title: ElevatedButton(
+          child: Text(context.tr("discover_devices_text")),
+          onPressed: () {
+            setState(() {
+              _updateExistingIDs = false;
+              _createDeviceList();
+            });
+          }
+        )
+      )
+    );
 
-      // rebuild everything with the new device list
-      setState(() {
-        pages[homePageIndex] = ListView(
-          children: cardList,
-        );
-      });
+    _saveItem(ipsAndIds);
+
+    setState(() {
+      pages[homePageIndex] = ListView(children: cardList);
     });
   }
 
@@ -150,7 +163,6 @@ class _HomePageState extends State<HomePage> {
     return ListTile(
       tileColor: (device.name == "OFFLINE") ? Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainer.withAlpha(200), const Color.fromARGB(255, 255, 148, 148)) : theme.colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
-        //side: const BorderSide(width: 0.8),
         borderRadius: BorderRadius.circular(20),
       ),
       leading: CircleAvatar(
@@ -163,11 +175,9 @@ class _HomePageState extends State<HomePage> {
         child: SizedBox(
           height: 50,
           width: 50,
-          child: Icon(Icons.edit, color: (device.name == "OFFLINE") ? Colors.grey : Theme.of(context).colorScheme.primary)  // Theme.of(context).colorScheme.primary
+          child: Icon(Icons.edit, color: (device.name == "OFFLINE") ? Colors.grey : Theme.of(context).colorScheme.primary)
         ),
         onTap: () {
-          // bottone di modifica del nome del dispositivo
-          // se il dispositivo è offline, mostra un popup di errore
           if (device.name == "OFFLINE") {
             showPopupOK(context, "Impossibile effettuare l'azione", "Il dispositivo sembra essere offline. prova ad aggiornare la lista.");
           } else {
@@ -182,15 +192,13 @@ class _HomePageState extends State<HomePage> {
       ),
       enableFeedback: true,
       onTap: () {
-        // bottone di selezione del dispositivo
-        // se il dispositivo è offline, mostra un popup di errore
         if (device.name == "OFFLINE") {
           showPopupOK(context, "Impossibile effettuare l'azione", "Il dispositivo sembra essere offline. prova ad aggiornare la lista.");
         } else {
           pages[devicePageIndex] = device.setThisDevicePage();
           setState(() {
             _lastSelectedIndex = homePageIndex;
-            _selectedIndex = devicePageIndex; // actually switch to the device page
+            _selectedIndex = devicePageIndex;
             _selectedDevice = device;
           });
         }
@@ -208,7 +216,6 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    // direct socket connection button for settings page
     if (_selectedIndex == settingsPageIndex) {
       return IconButton(
         icon: const Icon(Icons.dns_rounded),
@@ -216,13 +223,11 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             _selectedIndex = directSocketPageIndex;
             _lastSelectedIndex = settingsPageIndex;
-            //_createDeviceList();
           });
         },
       );
     }
 
-    // back button for direct socket page
     if (_selectedIndex == directSocketPageIndex) {
       return IconButton(
         icon: const Icon(Icons.arrow_back_rounded),
@@ -290,13 +295,12 @@ class _HomePageState extends State<HomePage> {
     }
 
     return const Text("");
-
   }
 
   bool backInterceptor(bool stopDefaultButtonEvent, RouteInfo info) {
     setState(() {
       if (_selectedIndex == homePageIndex) {
-        exit(0); // exit app if back button is pressed on home page
+        exit(0);
       }
 
       _selectedIndex = _lastSelectedIndex;   
@@ -308,12 +312,50 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
+  // Builds the AppBar title for the home tab.
+  // While scanning, a small animated badge shows the running device count
+  // so the user gets live feedback that something is happening.
+  Widget _buildHomeTitle(BuildContext context) {
+    final String baseTitle = context.tr("devices_text");
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(baseTitle),
+        if (_foundDeviceCount != null) ...[
+          const SizedBox(width: 8),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: child,
+            ),
+            child: Container(
+              key: ValueKey<int>(_foundDeviceCount!),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$_foundDeviceCount',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (firstRun) {
       firstRun = false;
-
-      // set app language to device language, if available
       context.setLocale(Locale(Localizations.localeOf(context).languageCode));
       lastLocale = context.locale;
     }
@@ -326,29 +368,26 @@ class _HomePageState extends State<HomePage> {
         pages[settingsPageIndex] = const SettingsPage();
       }
 
-      // rebuild device list to update language
       _updateExistingIDs = true;
       _createDeviceList();
     }
 
     pageToRender = pages[_selectedIndex];
 
-    // Titles for the AppBar
-    final List<String> titles = [
-      context.tr("devices_text"),
-      _selectedDevice.name,
-      context.tr("settings_text"),
-      context.tr("socket_text"),
+    final List<Widget> titleWidgets = [
+      _buildHomeTitle(context),
+      Text(_selectedDevice.name),
+      Text(context.tr("settings_text")),
+      Text(context.tr("socket_text")),
     ];
 
-    // Get theme colors
     final theme = Theme.of(context);
     final activeColor = theme.colorScheme.primary;
     final inactiveColor = theme.unselectedWidgetColor;
 
     return Scaffold (
       appBar: AppBar(
-        title: Text(titles[_selectedIndex]),
+        title: titleWidgets[_selectedIndex],
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 18.0),
@@ -365,13 +404,11 @@ class _HomePageState extends State<HomePage> {
         showElevation: false,
         backgroundColor: theme.colorScheme.surface,
         onItemSelected: (index) => setState(() {
-          // check if theme has been changed
           bool currentThemeDark = false;
           if (themeNotifier.value == ThemeMode.dark) {
             currentThemeDark = true;
           }
           if (darkTheme != currentThemeDark && index == homePageIndex) {
-            // reload pages that need to be reloaded on theme change
             darkTheme = currentThemeDark;
             _updateExistingIDs = true;
             _createDeviceList();
