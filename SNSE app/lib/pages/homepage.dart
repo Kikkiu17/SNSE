@@ -93,18 +93,30 @@ class _HomePageState extends State<HomePage> {
     final deviceList = await discoverDevices(
       _existingIPandIDs,
       onScanComplete: (ipCount) {
-        // Network scan done: show how many IPs responded.
         if (mounted) setState(() { _foundDeviceCount = ipCount; });
       },
       onDeviceFound: (count) {
-        // A device finished connecting: update to actual connected count.
         if (mounted) setState(() { _foundDeviceCount = count; });
       },
     );
 
     if (!mounted) return;
 
-    // Do NOT reset _foundDeviceCount — the badge stays visible on the homepage.
+    // --- AGGIUNTO: Ordina per IP decrescente ---
+    deviceList.sort((a, b) {
+      final aParts = a.ip.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final bParts = b.ip.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      
+      for (int i = 0; i < 4; i++) {
+        if (aParts.length > i && bParts.length > i) {
+          if (bParts[i] != aParts[i]) return bParts[i].compareTo(aParts[i]);
+        }
+      }
+      return 0;
+    });
+    // ------------------------------------------
+
+    // Do NOT reset _foundDeviceCount - the badge stays visible on the homepage.
 
     _existingIPandIDs = List.empty(growable: true);
     List<Widget> cardList = List.empty(growable: true);
@@ -255,6 +267,7 @@ class _HomePageState extends State<HomePage> {
                   border: const OutlineInputBorder(),
                   hintText: "direct_socket.device_ip".tr(),
                 ),
+                keyboardType: TextInputType.number,
                 onChanged: (text) {
                   newDeviceIp = text;
                 },

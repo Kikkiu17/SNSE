@@ -106,9 +106,8 @@ class Chart {
         }
       }
 
-      // Remove unit if present (e.g. "123 °C" -> "123")
-      List<String> valueSplit = cleanField.split(" ");
-      String rawValue = valueSplit[0];
+      // Estrae solo la parte numerica (es. da "12,5V" o "12.5 V" ottiene "12.5")
+      String rawValue = cleanField.replaceAll(',', '.').replaceAll(RegExp(r'[^0-9\.\-]'), '');
 
       if (!isGraphed) continue;
 
