@@ -13,6 +13,13 @@
     "no_device_found": "Nessun dispositivo trovato",
     "discover_devices_text": "Trova nuovi dispositivi",
     "loading_text": "Caricamento...",
+    "dont_remind_text": "Non ricordarmelo per questa versione",
+    "ok_text": "OK",
+    "download_text": "Scarica",
+    "update_available_title": "Aggiornamento disponibile",
+    "update_available_desc": "È disponibile una nuova versione ({})!",
+    "offline_error_title": "Impossibile effettuare l'azione",
+    "offline_error_content": "Il dispositivo sembra essere offline. Prova ad aggiornare la lista.",
     "direct_socket": {
         "device_ip": "IP dispositivo",
         "device_port": "Porta dispositivo",
@@ -89,6 +96,7 @@
         "oct": "Ottobre",
         "nov": "Novembre",
         "dec": "Dicembre",
-        "update_graph_text": "Aggiorna grafico"
+        "update_graph_text": "Aggiorna grafico",
+        "cant_connect": "Impossibile connettersi"
     }
 }

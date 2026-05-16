@@ -13,6 +13,13 @@
   "no_device_found": "No device found",
   "discover_devices_text": "Discover new devices",
   "loading_text": "Loading...",
+  "dont_remind_text": "Don't remind me for this version",
+  "ok_text": "OK",
+  "download_text": "Download",
+  "update_available_title": "Update Available",
+  "update_available_desc": "A new version ({}) is available!",
+  "offline_error_title": "Unable to perform action",
+  "offline_error_content": "The device seems to be offline. Try updating the list.",
   "direct_socket": {
     "device_ip": "Device IP",
     "device_port": "Device port",
@@ -89,6 +96,7 @@
     "oct": "October",
     "nov": "November",
     "dec": "December",
-    "update_graph_text": "Update graph"
+    "update_graph_text": "Update graph",
+    "cant_connect": "Unable to connect"
   }
 }

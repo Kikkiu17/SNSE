@@ -13,6 +13,13 @@
   "no_device_found": "Aucun appareil trouvé",
   "discover_devices_text": "Découvrir de nouveaux appareils",
   "loading_text": "Chargement...",
+  "dont_remind_text": "Ne plus me rappeler pour cette version",
+  "ok_text": "OK",
+  "download_text": "Télécharger",
+  "update_available_title": "Mise à jour disponible",
+  "update_available_desc": "Une nouvelle version ({}) est disponible !",
+  "offline_error_title": "Impossible d'effectuer l'action",
+  "offline_error_content": "L'appareil semble être hors ligne. Essayez de mettre à jour la liste.",
   "direct_socket": {
     "device_ip": "IP de l'appareil",
     "device_port": "Port de l'appareil",
@@ -89,6 +96,7 @@
     "oct": "Octobre",
     "nov": "Novembre",
     "dec": "Décembre",
-    "update_graph_text": "Mettre à jour le graphique"
+    "update_graph_text": "Mettre à jour le graphique",
+    "cant_connect": "Impossible de se connecter"
   }
 }

@@ -12,6 +12,7 @@ import 'device.dart';
 import '../discovery.dart';
 import '../tiles/tiles.dart';
 import '../flashytabbar/flashy_tab_bar2.dart';
+import '../update_checker.dart';
 
 const int maxPages = 4;
 const int homePageIndex = 0;
@@ -20,8 +21,7 @@ const int devicePageIndex = 1;
 const int settingsPageIndex = 2;
 const int directSocketPageIndex = 3; // not used in the tab bar
 
-class HomePage extends StatefulWidget
-{
+class HomePage extends StatefulWidget {
   final SharedPreferences storage;
   const HomePage({super.key, required this.storage});
 
@@ -36,7 +36,8 @@ class _HomePageState extends State<HomePage> {
   static List<String> _existingIPandIDs = List.empty(growable: true);
   static List<String> _manuallyAddedIPs = List.empty(growable: true);
 
-  static List<Widget> pages = List.filled(maxPages, loadingTile, growable: false);
+  static List<Widget> pages =
+      List.filled(maxPages, loadingTile, growable: false);
   static Device _selectedDevice = Device();
   static int _selectedIndex = 0;
   static int _lastSelectedIndex = 0;
@@ -49,7 +50,7 @@ class _HomePageState extends State<HomePage> {
   // Reset to null when not scanning so the badge is hidden.
   int? _foundDeviceCount;
 
-@override
+  @override
   void initState() {
     super.initState();
     pages[devicePageIndex] = grayTextCenteredTile("no_device_selected".tr());
@@ -57,9 +58,13 @@ class _HomePageState extends State<HomePage> {
     pages[directSocketPageIndex] = const DirectSocketPage();
     _createDeviceList();
     BackButtonInterceptor.add(backInterceptor);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateChecker.checkForUpdates(context);
+    });
   }
 
-@override
+  @override
   void dispose() {
     BackButtonInterceptor.remove(backInterceptor);
     super.dispose();
@@ -86,17 +91,24 @@ class _HomePageState extends State<HomePage> {
 
     if (!mounted) return;
     setState(() {
-      _foundDeviceCount = 0;  // show 0 immediately so the badge appears before results arrive
+      _foundDeviceCount =
+          0; // show 0 immediately so the badge appears before results arrive
       pages[homePageIndex] = loadingTile;
     });
 
     final deviceList = await discoverDevices(
       _existingIPandIDs,
       onScanComplete: (ipCount) {
-        if (mounted) setState(() { _foundDeviceCount = ipCount; });
+        if (mounted)
+          setState(() {
+            _foundDeviceCount = ipCount;
+          });
       },
       onDeviceFound: (count) {
-        if (mounted) setState(() { _foundDeviceCount = count; });
+        if (mounted)
+          setState(() {
+            _foundDeviceCount = count;
+          });
       },
     );
 
@@ -106,7 +118,7 @@ class _HomePageState extends State<HomePage> {
     deviceList.sort((a, b) {
       final aParts = a.ip.split('.').map((e) => int.tryParse(e) ?? 0).toList();
       final bParts = b.ip.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-      
+
       for (int i = 0; i < 4; i++) {
         if (aParts.length > i && bParts.length > i) {
           if (bParts[i] != aParts[i]) return bParts[i].compareTo(aParts[i]);
@@ -130,38 +142,29 @@ class _HomePageState extends State<HomePage> {
 
     if (cardList.isNotEmpty) {
       // list update button
-      cardList.add(
-      ListTile(
+      cardList.add(ListTile(
           title: ElevatedButton(
               child: Text(context.tr("update_text")),
-            onPressed: () {
-              setState(() {
-                _updateExistingIDs = true;
-                _createDeviceList();
-              });
-            }
-          )
-        )
-      );
+              onPressed: () {
+                setState(() {
+                  _updateExistingIDs = true;
+                  _createDeviceList();
+                });
+              })));
     } else {
-      print("nope");
       cardList.add(grayTextCenteredTile(context.tr("no_device_found")));
     }
 
     // discovery button
-    cardList.add(
-    ListTile(
+    cardList.add(ListTile(
         title: ElevatedButton(
-          child: Text(context.tr("discover_devices_text")),
-          onPressed: () {
-            setState(() {
-              _updateExistingIDs = false;
-              _createDeviceList();
-            });
-          }
-        )
-      )
-    );
+            child: Text(context.tr("discover_devices_text")),
+            onPressed: () {
+              setState(() {
+                _updateExistingIDs = false;
+                _createDeviceList();
+              });
+            })));
 
     _saveItem(ipsAndIds);
 
@@ -173,25 +176,33 @@ class _HomePageState extends State<HomePage> {
   ListTile _createDeviceTile(Device device, BuildContext context) {
     final theme = Theme.of(context);
     return ListTile(
-      tileColor: (device.name == "OFFLINE") ? Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainer.withAlpha(200), const Color.fromARGB(255, 255, 148, 148)) : theme.colorScheme.surfaceContainerHigh,
+      tileColor: (device.name == "OFFLINE")
+          ? Color.alphaBlend(
+              Theme.of(context).colorScheme.surfaceContainer.withAlpha(200),
+              const Color.fromARGB(255, 255, 148, 148))
+          : theme.colorScheme.surfaceContainerHigh,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
       leading: CircleAvatar(
-        backgroundColor: (device.name == "OFFLINE") ? Theme.of(context).colorScheme.surfaceContainerLow : null,
-        child: const Icon(Icons.sensors)
-      ),
+          backgroundColor: (device.name == "OFFLINE")
+              ? Theme.of(context).colorScheme.surfaceContainerLow
+              : null,
+          child: const Icon(Icons.sensors)),
       title: Text(device.name),
       subtitle: Text("${device.id} | ${device.ip}"),
       trailing: InkWell(
         child: SizedBox(
-          height: 50,
-          width: 50,
-          child: Icon(Icons.edit, color: (device.name == "OFFLINE") ? Colors.grey : Theme.of(context).colorScheme.primary)
-        ),
+            height: 50,
+            width: 50,
+            child: Icon(Icons.edit,
+                color: (device.name == "OFFLINE")
+                    ? Colors.grey
+                    : Theme.of(context).colorScheme.primary)),
         onTap: () {
           if (device.name == "OFFLINE") {
-            showPopupOK(context, "Impossibile effettuare l'azione", "Il dispositivo sembra essere offline. prova ad aggiornare la lista.");
+            showPopupOK(context, context.tr("offline_error_title"),
+                context.tr("offline_error_content"));
           } else {
             device.changeName(context).then((value) {
               setState(() {
@@ -205,7 +216,8 @@ class _HomePageState extends State<HomePage> {
       enableFeedback: true,
       onTap: () {
         if (device.name == "OFFLINE") {
-          showPopupOK(context, "Impossibile effettuare l'azione", "Il dispositivo sembra essere offline. prova ad aggiornare la lista.");
+          showPopupOK(context, context.tr("offline_error_title"),
+              context.tr("offline_error_content"));
         } else {
           pages[devicePageIndex] = device.setThisDevicePage();
           setState(() {
@@ -245,8 +257,8 @@ class _HomePageState extends State<HomePage> {
         icon: const Icon(Icons.arrow_back_rounded),
         onPressed: () {
           setState(() {
-            _selectedIndex = _lastSelectedIndex; 
-            _lastSelectedIndex = homePageIndex;         
+            _selectedIndex = _lastSelectedIndex;
+            _lastSelectedIndex = homePageIndex;
           });
         },
       );
@@ -258,51 +270,51 @@ class _HomePageState extends State<HomePage> {
       return IconButton(
         icon: const Icon(Icons.add),
         onPressed: () {
-          showDialog (
-            context: context,
-            builder: (BuildContext context) => AlertDialog(
-              title: Text("add_manually_text".tr()),
-              content: TextField(
-                decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
-                  hintText: "direct_socket.device_ip".tr(),
-                ),
-                keyboardType: TextInputType.number,
-                onChanged: (text) {
-                  newDeviceIp = text;
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text("cancel_text".tr()),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (newDeviceIp == "") {
-                      showPopupOK(context, "device.error_text".tr(), "device.ip_not_empty".tr());
-                      return;
-                    }
+          showDialog(
+              context: context,
+              builder: (BuildContext context) => AlertDialog(
+                    title: Text("add_manually_text".tr()),
+                    content: TextField(
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        hintText: "direct_socket.device_ip".tr(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (text) {
+                        newDeviceIp = text;
+                      },
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text("cancel_text".tr()),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          if (newDeviceIp == "") {
+                            showPopupOK(context, "device.error_text".tr(),
+                                "device.ip_not_empty".tr());
+                            return;
+                          }
 
-                    _updateExistingIDs = true;
-                    if (!_manuallyAddedIPs.contains(newDeviceIp)) {
-                      _manuallyAddedIPs.add(newDeviceIp);
-                    }
-                    await _createDeviceList();
+                          _updateExistingIDs = true;
+                          if (!_manuallyAddedIPs.contains(newDeviceIp)) {
+                            _manuallyAddedIPs.add(newDeviceIp);
+                          }
+                          await _createDeviceList();
 
-                    setState(() {
-                      _manuallyAddedIPs = List.empty(growable: true);
-                    });
+                          setState(() {
+                            _manuallyAddedIPs = List.empty(growable: true);
+                          });
 
-                    if (context.mounted) {
-                      Navigator.pop(context, true);
-                    }
-                  },
-                  child: Text("add_text".tr()),
-                )
-              ],
-            )
-          );
+                          if (context.mounted) {
+                            Navigator.pop(context, true);
+                          }
+                        },
+                        child: Text("add_text".tr()),
+                      )
+                    ],
+                  ));
         },
       );
     }
@@ -316,11 +328,11 @@ class _HomePageState extends State<HomePage> {
         exit(0);
       }
 
-      _selectedIndex = _lastSelectedIndex;   
+      _selectedIndex = _lastSelectedIndex;
 
       if (_selectedIndex == settingsPageIndex) {
         _lastSelectedIndex = homePageIndex;
-      }       
+      }
     });
     return true;
   }
@@ -377,7 +389,8 @@ class _HomePageState extends State<HomePage> {
       lastLocale = context.locale;
 
       if (_selectedDevice.name == "") {
-        pages[devicePageIndex] = grayTextCenteredTile("no_device_selected".tr());
+        pages[devicePageIndex] =
+            grayTextCenteredTile("no_device_selected".tr());
         pages[settingsPageIndex] = const SettingsPage();
       }
 
@@ -398,17 +411,30 @@ class _HomePageState extends State<HomePage> {
     final activeColor = theme.colorScheme.primary;
     final inactiveColor = theme.unselectedWidgetColor;
 
-    return Scaffold (
+    return Scaffold(
       appBar: AppBar(
         title: titleWidgets[_selectedIndex],
         actions: [
+          ValueListenableBuilder<String?>(
+            valueListenable: UpdateChecker.latestVersionNotifier,
+            builder: (context, latestVersion, child) {
+              if (latestVersion == null) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(Icons.system_update_alt, color: Colors.orange),
+                onPressed: () =>
+                    UpdateChecker.checkForUpdates(context, forceShow: true),
+                tooltip: context.tr("update_text"),
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 18.0),
             child: getActionButton(),
           ),
         ],
       ),
-      body: Center(child: FractionallySizedBox(widthFactor: 0.95, child: pageToRender)),
+      body: Center(
+          child: FractionallySizedBox(widthFactor: 0.95, child: pageToRender)),
       bottomNavigationBar: FlashyTabBar(
         animationCurve: Curves.fastEaseInToSlowEaseOut,
         animationDuration: const Duration(milliseconds: 350),
@@ -435,19 +461,22 @@ class _HomePageState extends State<HomePage> {
             icon: const Icon(Icons.list),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: Text(context.tr("list_text"), style: const TextStyle(fontSize: 16)),
+            title: Text(context.tr("list_text"),
+                style: const TextStyle(fontSize: 16)),
           ),
           FlashyTabBarItem(
             icon: const Icon(Icons.sensors),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: Text(context.tr("device_text"), style: const TextStyle(fontSize: 16)),
+            title: Text(context.tr("device_text"),
+                style: const TextStyle(fontSize: 16)),
           ),
           FlashyTabBarItem(
             icon: const Icon(Icons.settings),
             activeColor: activeColor,
             inactiveColor: inactiveColor,
-            title: Text(context.tr("settings_text"), style: const TextStyle(fontSize: 16)),
+            title: Text(context.tr("settings_text"),
+                style: const TextStyle(fontSize: 16)),
           ),
         ],
       ),

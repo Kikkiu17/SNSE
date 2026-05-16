@@ -279,7 +279,7 @@ class TcpClient {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'OK'),
-            child: const Text('OK'),
+            child: Text('ok_text'.tr()),
           ),
         ],
       )
@@ -295,7 +295,7 @@ class TcpClient {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, 'OK'),
-            child: const Text('OK'),
+            child: Text('ok_text'.tr()),
           ),
         ],
       )
@@ -332,7 +332,7 @@ void showPopupOK(BuildContext context, String title, String content) {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, 'OK'),
-          child: const Text('OK'),
+          child: Text('ok_text'.tr()),
         ),
       ],
     )
@@ -394,7 +394,7 @@ class Device {
 
               Navigator.pop(context, true);
             },
-            child: const Text('OK'),
+            child: Text('ok_text'.tr()),
           )
         ],
       )
