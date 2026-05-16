@@ -158,6 +158,17 @@ class TcpClient {
     return result;
   }
 
+  Future<void> sendDataNoResponse(String data) async {
+    await _sendLock.synchronized(() async {
+      if (_socket == null) {
+        throw Exception('Socket is not connected.');
+      }
+
+      _socket!.write("$data\r\n");
+      debug.log("\x1B[33mtrying without response: $data\r\n\x1B[0m");
+    });
+  }
+
   Future<String> sendDataRetry(String data, int retries, int retryDelay) async {
     String response = "";
     int timeoutCount = 0;
@@ -396,18 +407,12 @@ class Device {
     return DevicePage(device: this);
   }
 
-  Future<String> pressUnpressSwitch(String id) async {
-    String resp = await client.sendData("GET ?switch=$id");
-    if (resp.contains("200 OK")) {
-      String isPressed = resp.split("\n")[1];
-      if (isPressed == "1") {
-        await client.sendPost("POST ?switch=$id&cmd=0");
-      } else if (isPressed == "0") {
-        await client.sendPost("POST ?switch=$id&cmd=1");
-      }
+  Future<void> pressUnpressSwitch(String id, String isPressed) async {
+    if (isPressed == "1") {
+      await client.sendDataNoResponse("POST ?switch=$id&cmd=0");
+    } else if (isPressed == "0") {
+      await client.sendDataNoResponse("POST ?switch=$id&cmd=1");
     }
-
-    return resp.split("\n")[0];
   }
 }
 
@@ -523,6 +528,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     String text = "$switchId: $switchname";
     Color color = Theme.of(context).colorScheme.inversePrimary;
 
+    String switchStatus = "";
     for (String addon in feature.split(","))
     {
       if (addon.contains("sensor")) {
@@ -531,6 +537,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
         text += " - $sensorName: $sensorData";
       } else if (addon.contains("status")) {
         String status = addon.split(dataSeparator)[1];
+        switchStatus = status;
         if (status == "0") {
           color = Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50), const Color.fromARGB(255, 231, 67, 67));
         } else if (status == "1") {
@@ -562,19 +569,12 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                     child: Icon(Icons.radio_button_checked, color: Color.alphaBlend(Colors.black.withAlpha(220), color))  // Theme.of(context).colorScheme.primary
                     ),
                     onTap: () async {
-                      await widget.device.client.stopSendingLoop();
-
-                      String statusCode = await widget.device.pressUnpressSwitch(switchId);
-                      if (statusCode != "200 OK") {
-                        showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
-                      }
+                      await widget.device.pressUnpressSwitch(switchId, switchStatus);
 
                       /*String statusCode = await widget.device.openCloseValve(switchId);
                       if (statusCode != "200 OK") {
                         showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                       }*/
-
-                      widget.device.client.startSendingLoop(context);
                     },
                 ),
               ),
@@ -669,14 +669,10 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   if (dataToSend == "") {
                     showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
                   } else {
-                    await widget.device.client.stopSendingLoop();
-
                     String statusCode = await widget.device.client.sendPost(dataToSend);
                     if (statusCode != "200 OK") {
                       showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                     }
-
-                    widget.device.client.startSendingLoop(context);
                   }
                 }
               ),
@@ -719,8 +715,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
           ElevatedButton(
             child: Text(buttonText),
             onPressed: () async {
-              await widget.device.client.stopSendingLoop();
-
               if (dataToSend.startsWith("send")) {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
@@ -729,7 +723,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
                 textInputController.clear();
-                widget.device.client.startSendingLoop(context);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -740,7 +733,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
-                  widget.device.client.startSendingLoop(context);
                 }
               }
             }
@@ -840,8 +832,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             ),
             child: Text(buttonText),
             onPressed: () async {
-              await widget.device.client.stopSendingLoop();
-
               if (dataToSend.startsWith("send")) {
                 // dataToSend: sendPOST ?key=<TEXTINPUT>
                 String template = dataToSend.split("send")[1];
@@ -850,7 +840,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 if (statusCode.split("\n")[0] != "200 OK") {
                   showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                 }
-                widget.device.client.startSendingLoop(context);
               } else {
                 if (dataToSend == "") {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -861,7 +850,6 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                   if (statusCode.split("\n")[0] != "200 OK") {
                     showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                   }
-                  widget.device.client.startSendingLoop(context);
                 }
               }
             }
