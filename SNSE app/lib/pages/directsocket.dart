@@ -46,7 +46,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
       }
     } else if (state == AppLifecycleState.resumed) {
       // app in foreground
-      device.client.connect(device.ip, int.tryParse(devicePort) ?? defaultPort, device).then((connected) {
+      device.client.connectRetry(device.ip, int.tryParse(devicePort) ?? defaultPort, connectionRetries, device).then((connected) {
         isConnected = connected;
         if (context.mounted) {
           setState(() {});
@@ -133,7 +133,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               onPressed: () async {
                 device.client.disconnect();
                 device.ip = deviceIP;
-                isConnected = await device.client.connect(device.ip, int.tryParse(devicePort) ?? defaultPort, device);
+                isConnected = await device.client.connectRetry(device.ip, int.tryParse(devicePort) ?? defaultPort, connectionRetries, device);
                 sentBytes = 0;
                 recvBytes = 0;
                 recvString = "";

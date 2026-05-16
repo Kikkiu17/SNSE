@@ -59,7 +59,7 @@ class TcpClient {
   Future<bool> connect(String host, int port, Device? dev) async {
     linkedDevice = dev;
     try {
-      _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()));
+      _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? 2000));
       _socket!.listen(_onData, onError: _onError, onDone: _onDone);
       debug.log("Connected to $host");
       return true;
@@ -72,18 +72,31 @@ class TcpClient {
 
   Future<bool> connectRetry(String host, int port, int retries, Device? dev) async {
     linkedDevice = dev;
+    int timeoutMs = customTimeout ?? 2000;
+    int timeoutCount = 0;
 
     for (int i = 0; i < retries; i++) {
+      final start = DateTime.now();
       try {
-        _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()));
+        _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: timeoutMs));
         _socket!.listen(_onData, onError: _onError, onDone: _onDone);
         debug.log("Connected to $host");
         return true;
       } catch (e) {
         debug.log('Connection failed: $e');
+        final elapsed = DateTime.now().difference(start).inMilliseconds;
+        // If the connection timed out, the host is likely completely offline.
+        // We limit timeout retries to avoid long hangs.
+        if (elapsed >= timeoutMs - 50) {
+          timeoutCount++;
+          if (timeoutCount >= 1) {
+            debug.log('Connection timed out. Stopping retries to save time.');
+            break;
+          }
+        }
       }
       debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
-      await Future.delayed(const Duration(milliseconds: 5));
+      await Future.delayed(const Duration(milliseconds: 150));
     }
 
     _socket = null;
@@ -135,9 +148,9 @@ class TcpClient {
       _socket!.write("$data\r\n");
       debug.log("\x1B[33mtrying: $data\r\n\x1B[0m");
 
-      return await completer.future.timeout(Duration(milliseconds: customTimeout ?? savedSettings.getUpdateTime()), onTimeout: () {
+      return await completer.future.timeout(Duration(milliseconds: customTimeout ?? 2000), onTimeout: () {
         _responseQueue.remove(completer);
-        debug.log('\x1B[31mNo response within ${customTimeout ?? savedSettings.getUpdateTime()} ms. Request: $data\x1B[0m');
+        debug.log('\x1B[31mNo response within ${customTimeout ?? 2000} ms. Request: $data\x1B[0m');
         return ""; // Return empty string on timeout
       });
     });
@@ -147,10 +160,19 @@ class TcpClient {
 
   Future<String> sendDataRetry(String data, int retries, int retryDelay) async {
     String response = "";
+    int timeoutCount = 0;
     for (int i = 0; i < retries; i++) {
       response = await sendData(data);
       if (response.contains("200 OK")) {
         break;
+      }
+      if (response == "") {
+        timeoutCount++;
+        // Limit timeout retries to 2 attempts max to avoid long hangs
+        if (timeoutCount >= 2) {
+          debug.log('sendData timed out repeatedly. Stopping retries.');
+          break;
+        }
       }
       debug.log("\x1B[31mRetrying... ($i)\x1B[0m");
       await Future.delayed(Duration(milliseconds: retryDelay));
@@ -444,7 +466,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
 
     addExternalFeaturesListener.addListener(_addExternalFeature);
 
-    widget.device.client.connect(widget.device.ip, defaultPort, widget.device).then((connected) {
+    widget.device.client.connectRetry(widget.device.ip, defaultPort, connectionRetries, widget.device).then((connected) {
       if (connected) {
         widget.device.client.startSendingLoop(context);
       } else {
@@ -478,7 +500,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       widget.device.client.disconnect();
     } else if (state == AppLifecycleState.resumed) {
       // app in foreground
-      widget.device.client.connect(widget.device.ip, defaultPort, widget.device).then((connected) {
+      widget.device.client.connectRetry(widget.device.ip, defaultPort, connectionRetries, widget.device).then((connected) {
         if (connected) {
           widget.device.client.startSendingLoop(context);
         } else {
