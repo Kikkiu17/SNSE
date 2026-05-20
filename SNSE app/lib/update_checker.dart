@@ -143,8 +143,15 @@ class UpdateChecker {
                       : "https://github.com/Kikkiu17/SNSE/releases/latest";
 
                   final Uri url = Uri.parse(downloadUrl);
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  try {
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } else {
+                      debugPrint("canLaunchUrl returned false for $url, trying launchUrl directly.");
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
+                  } catch (e) {
+                    debugPrint("Failed to launch download URL: $e");
                   }
                 },
                 child: Text("download_text".tr()),
