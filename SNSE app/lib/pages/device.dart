@@ -45,21 +45,34 @@ class TcpClient {
   Completer<void>? _loopCompleter;
 
   int? customTimeout;
+  String? _lastHost;
+  int? _lastPort;
 
-  Future<void> connectAndStartLoop(String host, int port, Device? dev, BuildContext context) async {
+  Future<void> connectAndStartLoop(
+      String host, int port, Device? dev, BuildContext context) async {
     bool connected = await connect(host, port, dev);
     if (connected) {
       await dev!.client.startSendingLoop(context);
     } else {
-      showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
+      showPopupOK(
+          context, "device.error_text".tr(), "device.cant_connect".tr());
     }
   }
 
   /// Connect to the server and return true if successful
   Future<bool> connect(String host, int port, Device? dev) async {
     linkedDevice = dev;
+    _lastHost = host;
+    _lastPort = port;
+    if (_socket != null) {
+      debug.log("Socket already exists, disconnecting before reconnecting.");
+      await disconnect();
+    }
+    _buffer = "";
+    _clearResponseQueue("");
     try {
-      _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: customTimeout ?? 2000));
+      _socket = await Socket.connect(host, port,
+          timeout: Duration(milliseconds: customTimeout ?? 2000));
       _socket!.listen(_onData, onError: _onError, onDone: _onDone);
       debug.log("Connected to $host");
       return true;
@@ -70,15 +83,25 @@ class TcpClient {
     }
   }
 
-  Future<bool> connectRetry(String host, int port, int retries, Device? dev) async {
+  Future<bool> connectRetry(
+      String host, int port, int retries, Device? dev) async {
     linkedDevice = dev;
+    _lastHost = host;
+    _lastPort = port;
+    if (_socket != null) {
+      debug.log("Socket already exists, disconnecting before reconnecting.");
+      await disconnect();
+    }
+    _buffer = "";
+    _clearResponseQueue("");
     int timeoutMs = customTimeout ?? 2000;
     int timeoutCount = 0;
 
     for (int i = 0; i < retries; i++) {
       final start = DateTime.now();
       try {
-        _socket = await Socket.connect(host, port, timeout: Duration(milliseconds: timeoutMs));
+        _socket = await Socket.connect(host, port,
+            timeout: Duration(milliseconds: timeoutMs));
         _socket!.listen(_onData, onError: _onError, onDone: _onDone);
         debug.log("Connected to $host");
         return true;
@@ -107,7 +130,7 @@ class TcpClient {
   String _buffer = "";
 
   void _onData(Uint8List data) {
-    _buffer += utf8.decode(data);
+    _buffer += utf8.decode(data, allowMalformed: true);
     debug.log("Received data: $_buffer");
 
     while (_buffer.contains("\r\n")) {
@@ -124,55 +147,86 @@ class TcpClient {
     }
   }
 
+  void _clearResponseQueue([String value = ""]) {
+    while (_responseQueue.isNotEmpty) {
+      final completer = _responseQueue.removeFirst();
+      if (!completer.isCompleted) {
+        completer.complete(value);
+      }
+    }
+  }
+
+  void _closeSocketAndCleanUp() {
+    _socket?.destroy();
+    _socket = null;
+    _buffer = "";
+    _clearResponseQueue("");
+  }
 
   void _onError(error) {
     debug.log('Socket error: $error');
-    _socket?.destroy();
-    _socket = null;
+    _closeSocketAndCleanUp();
   }
 
   void _onDone() {
     debug.log('Socket closed');
-    _socket = null;
+    _closeSocketAndCleanUp();
   }
 
   /// Send a single request and wait for its response
   Future<String> sendData(String data) async {
-    final result = await _sendLock.synchronized(() async {
-      if (_socket == null) {
-        throw Exception('Socket is not connected.');
-      }
+    try {
+      final result = await _sendLock.synchronized(() async {
+        if (_socket == null) {
+          throw Exception('Socket is not connected.');
+        }
 
-      final completer = Completer<String>();
-      _responseQueue.add(completer);
-      _socket!.write("$data\r\n");
-      debug.log("\x1B[33mtrying: $data\r\n\x1B[0m");
+        final completer = Completer<String>();
+        _responseQueue.add(completer);
+        _socket!.write("$data\r\n");
+        debug.log("\x1B[33mtrying: $data\r\n\x1B[0m");
 
-      return await completer.future.timeout(Duration(milliseconds: customTimeout ?? 2000), onTimeout: () {
-        _responseQueue.remove(completer);
-        debug.log('\x1B[31mNo response within ${customTimeout ?? 2000} ms. Request: $data\x1B[0m');
-        return ""; // Return empty string on timeout
+        return await completer.future.timeout(
+            Duration(milliseconds: customTimeout ?? 2000), onTimeout: () {
+          _responseQueue.remove(completer);
+          debug.log(
+              '\x1B[31mNo response within ${customTimeout ?? 2000} ms. Request: $data\x1B[0m');
+          _closeSocketAndCleanUp();
+          return ""; // Return empty string on timeout
+        });
       });
-    });
 
-    return result;
+      return result;
+    } catch (e) {
+      debug.log('sendData exception: $e');
+      return "";
+    }
   }
 
   Future<void> sendDataNoResponse(String data) async {
-    await _sendLock.synchronized(() async {
-      if (_socket == null) {
-        throw Exception('Socket is not connected.');
-      }
+    try {
+      await _sendLock.synchronized(() async {
+        if (_socket == null) {
+          throw Exception('Socket is not connected.');
+        }
 
-      _socket!.write("$data\r\n");
-      debug.log("\x1B[33mtrying without response: $data\r\n\x1B[0m");
-    });
+        _socket!.write("$data\r\n");
+        debug.log("\x1B[33mtrying without response: $data\r\n\x1B[0m");
+      });
+    } catch (e) {
+      debug.log('sendDataNoResponse exception: $e');
+    }
   }
 
   Future<String> sendDataRetry(String data, int retries, int retryDelay) async {
     String response = "";
     int timeoutCount = 0;
     for (int i = 0; i < retries; i++) {
+      if (_socket == null && _lastHost != null && _lastPort != null) {
+        debug.log("Socket is null inside sendDataRetry, attempting reconnection...");
+        await connectRetry(_lastHost!, _lastPort!, 1, linkedDevice);
+      }
+
       response = await sendData(data);
       if (response.contains("200 OK")) {
         break;
@@ -194,7 +248,8 @@ class TcpClient {
   // Use this for all POST requests — gives extra time for the STM32
   // to process the command and respond back through the ESP8266 AT firmware
   Future<String> sendPost(String data) async {
-    await Future.delayed(const Duration(milliseconds: 250)); // wait for ESP/STM32 to be ready
+    await Future.delayed(
+        const Duration(milliseconds: 250)); // wait for ESP/STM32 to be ready
     String resp = await sendData(data);
     return resp;
   }
@@ -202,7 +257,7 @@ class TcpClient {
   /// Start the periodic loop that sends two requests every 250ms
   Future<void> startSendingLoop(BuildContext context) async {
     if (linkedDevice == null) return;
-      if (_sendingLoopActive) return;
+    if (_sendingLoopActive) return;
 
     _sendingLoopActive = true;
     _stopRequested = false;
@@ -217,6 +272,22 @@ class TcpClient {
       final start = DateTime.now();
 
       try {
+        if (_socket == null) {
+          debug.log('Socket is disconnected. Attempting to reconnect...');
+          bool connected = await connectRetry(
+              linkedDevice!.ip, defaultPort, connectionRetries, linkedDevice);
+          if (!connected) {
+            final elapsed = DateTime.now().difference(start).inMilliseconds;
+            final sleepTime = savedSettings.getUpdateTime() > 2000
+                ? savedSettings.getUpdateTime()
+                : 2000;
+            if (elapsed < sleepTime) {
+              await Future.delayed(Duration(milliseconds: sleepTime - elapsed));
+            }
+            continue;
+          }
+        }
+
         final notification = await sendData("GET ?notification");
         handleNotification(notification, context);
 
@@ -225,7 +296,8 @@ class TcpClient {
         String features = linkedDevice!.features.join(";");
         String newFeatures = await sendData("GET ?features");
         // newFeatures.toLowerCase().contains("vuoto") means notification data
-        if (newFeatures.contains("200 OK") && !newFeatures.toLowerCase().contains("vuoto")) {
+        if (newFeatures.contains("200 OK") &&
+            !newFeatures.toLowerCase().contains("vuoto")) {
           features = newFeatures;
         }
         linkedDevice!.features = features.replaceAll("200 OK\n", "").split(";");
@@ -236,7 +308,8 @@ class TcpClient {
 
       final elapsed = DateTime.now().difference(start).inMilliseconds;
       if (elapsed < savedSettings.getUpdateTime()) {
-        await Future.delayed(Duration(milliseconds: savedSettings.getUpdateTime() - elapsed));
+        await Future.delayed(
+            Duration(milliseconds: savedSettings.getUpdateTime() - elapsed));
       }
     }
 
@@ -269,37 +342,35 @@ class TcpClient {
 
     return "";
   }
-  
+
   void showNotification(BuildContext context, String notificationText) {
     showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text("device.notification".tr()),
-        content: Text(notificationText),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'OK'),
-            child: Text('ok_text'.tr()),
-          ),
-        ],
-      )
-    );
+        context: context,
+        builder: (BuildContext context) => AlertDialog(
+              title: Text("device.notification".tr()),
+              content: Text(notificationText),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'OK'),
+                  child: Text('ok_text'.tr()),
+                ),
+              ],
+            ));
   }
 
   void showNoNewNotifications(BuildContext context) {
     showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text("device.no_notif_dialog_title".tr()),
-        content: Text("device.no_notif_dialog_content".tr()),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'OK'),
-            child: Text('ok_text'.tr()),
-          ),
-        ],
-      )
-    );
+        context: context,
+        builder: (BuildContext context) => AlertDialog(
+              title: Text("device.no_notif_dialog_title".tr()),
+              content: Text("device.no_notif_dialog_content".tr()),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'OK'),
+                  child: Text('ok_text'.tr()),
+                ),
+              ],
+            ));
   }
 
   void handleNotification(String notificationText, BuildContext context) {
@@ -316,27 +387,25 @@ class TcpClient {
     }
   }
 
-  void disconnect() {
-    stopSendingLoop();
-    _socket?.destroy();
-    _socket = null;
+  Future<void> disconnect() async {
+    _closeSocketAndCleanUp();
+    await stopSendingLoop();
   }
 }
 
 void showPopupOK(BuildContext context, String title, String content) {
   showDialog(
-    context: context,
-    builder: (BuildContext context) => AlertDialog(
-      title: Text(title),
-      content: Text(content),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, 'OK'),
-          child: Text('ok_text'.tr()),
-        ),
-      ],
-    )
-  );
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'OK'),
+                child: Text('ok_text'.tr()),
+              ),
+            ],
+          ));
 }
 
 class Device {
@@ -350,55 +419,55 @@ class Device {
   Future<String> sendName(String name) async {
     while (!await client.connect(ip, defaultPort, this)) {}
     String resp = await client.sendPost("POST ?wifi=changename&name=$name");
-    client.disconnect();
+    await client.disconnect();
     return resp.split("\n")[0];
   }
 
   Future<bool?> changeName(BuildContext context) async {
     String userInputName = "";
 
-    bool? ret = await showDialog (
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: Text(context.tr("device.change_name_dialog_title")),
-        content: TextField(
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(),
-            hintText: context.tr("device.change_name_dialog_hint"),
-          ),
-          onChanged: (text) {
-            userInputName = text;
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text("cancel_text".tr()),
-          ),
-          TextButton(
-            onPressed: () {
+    bool? ret = await showDialog(
+        context: context,
+        builder: (BuildContext context) => AlertDialog(
+              title: Text(context.tr("device.change_name_dialog_title")),
+              content: TextField(
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  hintText: context.tr("device.change_name_dialog_hint"),
+                ),
+                onChanged: (text) {
+                  userInputName = text;
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: Text("cancel_text".tr()),
+                ),
+                TextButton(
+                  onPressed: () {
+                    if (userInputName == "") {
+                      showPopupOK(context, "device.error_text".tr(),
+                          "device.change_name_empty".tr());
+                      return;
+                    }
 
-              if (userInputName == "") {
-                showPopupOK(context, "device.error_text".tr(), "device.change_name_empty".tr());
-                return;
-              }
+                    sendName(userInputName).then((statusCode) {
+                      if (statusCode == "200 OK") {
+                        showPopupOK(context, "device.success_text".tr(),
+                            "device.change_name_success".tr());
+                      } else {
+                        showPopupOK(context, "device.error_text".tr(),
+                            "device.change_name_error".tr());
+                      }
+                    });
 
-              sendName(userInputName).then((statusCode) {
-                if (statusCode == "200 OK") {
-                  showPopupOK(context, "device.success_text".tr(), "device.change_name_success".tr());
-                }
-                else {
-                  showPopupOK(context, "device.error_text".tr(), "device.change_name_error".tr());
-                }
-              });
-
-              Navigator.pop(context, true);
-            },
-            child: Text('ok_text'.tr()),
-          )
-        ],
-      )
-    );
+                    Navigator.pop(context, true);
+                  },
+                  child: Text('ok_text'.tr()),
+                )
+              ],
+            ));
 
     return ret;
   }
@@ -417,10 +486,7 @@ class Device {
 }
 
 class DevicePage extends StatefulWidget {
-  const DevicePage({
-    super.key,
-    required this.device
-  });
+  const DevicePage({super.key, required this.device});
 
   final Device device;
 
@@ -437,13 +503,13 @@ ValueNotifier<bool> updateExternalFeaturesListener = ValueNotifier(false);
 List<Widget> userIOs = List.empty(growable: true);
 bool firstRun = true;
 
-class ExternalFeature
-{
+class ExternalFeature {
   ExternalFeature(this.index, this.id, this.widget);
   final int index;
   final int id;
   final Widget widget;
 }
+
 List<Widget> externalFeaturesWidgets = List.empty(growable: true);
 String rawExternalFeatures = "";
 ValueNotifier<bool> addExternalFeaturesListener = ValueNotifier(false);
@@ -452,6 +518,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   bool rawExternalFeaturesAdded = false;
 
   void _generateIOsListener() {
+    if (!mounted) return;
     if (!update) return;
     updateIOs.value = false;
     userIOs = _generateDirectUserIOs(widget.device);
@@ -471,11 +538,16 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
 
     addExternalFeaturesListener.addListener(_addExternalFeature);
 
-    widget.device.client.connectRetry(widget.device.ip, defaultPort, connectionRetries, widget.device).then((connected) {
+    widget.device.client
+        .connectRetry(
+            widget.device.ip, defaultPort, connectionRetries, widget.device)
+        .then((connected) {
+      if (!mounted) return;
       if (connected) {
         widget.device.client.startSendingLoop(context);
       } else {
-        showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
+        showPopupOK(
+            context, "device.error_text".tr(), "device.cant_connect".tr());
       }
     });
 
@@ -485,52 +557,54 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     firstRun = false;
-    Future.microtask(() async {
-      widget.device.client.disconnect();
-      generateIOs.removeListener(_generateIOsListener);
-      generateIOs.dispose();
-    });
-
+    generateIOs.removeListener(_generateIOsListener);
     addExternalFeaturesListener.removeListener(_addExternalFeature);
+
+    widget.device.client.disconnect();
 
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached ||
-    state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
       // app in background
-      widget.device.client.disconnect();
+      await widget.device.client.disconnect();
     } else if (state == AppLifecycleState.resumed) {
       // app in foreground
-      widget.device.client.connectRetry(widget.device.ip, defaultPort, connectionRetries, widget.device).then((connected) {
+      widget.device.client
+          .connectRetry(
+              widget.device.ip, defaultPort, connectionRetries, widget.device)
+          .then((connected) {
+        if (!mounted) return;
         if (connected) {
           widget.device.client.startSendingLoop(context);
         } else {
-          showPopupOK(context, "device.error_text".tr(), "device.cant_connect".tr());
+          showPopupOK(
+              context, "device.error_text".tr(), "device.cant_connect".tr());
         }
       });
     }
   }
 
-
   // DATA SEPARATOR WILL BE FOUND IN settings.dart
   // for example: switch1<DATA SEPARATOR>Valvola1,sensor<DATA SEPARATOR>Stato<DATA SEPARATOR>aperta,sensor<DATA SEPARATOR>Litri/s<DATA SEPARATOR>5.24;
 
-  Card _addSwitchFeature(String feature)
-  {
+  Card _addSwitchFeature(String feature) {
     // switch1$Valvola1,status$1,sensor$Stato$aperta,sensor$Litri/s$5.24;
     feature.replaceAll(";", "");
-    String switchId = feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1];
+    String switchId = feature.split(dataSeparator)[0]
+        [feature.split(dataSeparator)[0].length - 1];
     String switchname = feature.split(dataSeparator)[1].split(",")[0];
     String text = "$switchId: $switchname";
     Color color = Theme.of(context).colorScheme.inversePrimary;
 
     String switchStatus = "";
-    for (String addon in feature.split(","))
-    {
+    for (String addon in feature.split(",")) {
       if (addon.contains("sensor")) {
         String sensorName = addon.split(dataSeparator)[1];
         String sensorData = addon.split(dataSeparator)[2];
@@ -539,9 +613,13 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
         String status = addon.split(dataSeparator)[1];
         switchStatus = status;
         if (status == "0") {
-          color = Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50), const Color.fromARGB(255, 231, 67, 67));
+          color = Color.alphaBlend(
+              Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50),
+              const Color.fromARGB(255, 231, 67, 67));
         } else if (status == "1") {
-          color = Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50), const Color.fromARGB(255, 59, 208, 59));
+          color = Color.alphaBlend(
+              Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50),
+              const Color.fromARGB(255, 59, 208, 59));
         }
       }
     }
@@ -564,18 +642,21 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
                 child: InkWell(
                   enableFeedback: true,
                   child: SizedBox(
-                    height: 50,
-                    width: 50,
-                    child: Icon(Icons.radio_button_checked, color: Color.alphaBlend(Colors.black.withAlpha(220), color))  // Theme.of(context).colorScheme.primary
-                    ),
-                    onTap: () async {
-                      await widget.device.pressUnpressSwitch(switchId, switchStatus);
+                      height: 50,
+                      width: 50,
+                      child: Icon(Icons.radio_button_checked,
+                          color: Color.alphaBlend(Colors.black.withAlpha(220),
+                              color)) // Theme.of(context).colorScheme.primary
+                      ),
+                  onTap: () async {
+                    await widget.device
+                        .pressUnpressSwitch(switchId, switchStatus);
 
-                      /*String statusCode = await widget.device.openCloseValve(switchId);
+                    /*String statusCode = await widget.device.openCloseValve(switchId);
                       if (statusCode != "200 OK") {
                         showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
                       }*/
-                    },
+                  },
                 ),
               ),
             ),
@@ -585,8 +666,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     );
   }
 
-  Card _addTimestampFeature(String feature)
-  {
+  Card _addTimestampFeature(String feature) {
     // timestamp1:TimestampName:timestamp;
     feature.replaceAll(";", "");
     //String timestampId = feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1];
@@ -611,8 +691,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     );
   }
 
-  Card _addSensorFeature(String feature)
-  {
+  Card _addSensorFeature(String feature) {
     // sensor1$SensorName$SensorData$OPTIONAL_GRAPH;
     feature.replaceAll(";", "");
     //String sensorId = feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1];
@@ -639,8 +718,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     );
   }
 
-  Card _addButtonFeature(String feature)
-  {
+  Card _addButtonFeature(String feature) {
     // button1&giao&dataToSend;
     feature.replaceAll(";", "");
     //String buttonId = feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1];
@@ -660,22 +738,25 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
             Padding(
               padding: const EdgeInsets.only(left: 8.0),
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                ),
-                child: Text(buttonText),
-                onPressed: () async {
-                  if (dataToSend == "") {
-                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
-                  } else {
-                    String statusCode = await widget.device.client.sendPost(dataToSend);
-                    if (statusCode != "200 OK") {
-                      showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainerLow,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                  ),
+                  child: Text(buttonText),
+                  onPressed: () async {
+                    if (dataToSend == "") {
+                      showPopupOK(context, "device.error_text".tr(),
+                          "device.no_content_sent".tr());
+                    } else {
+                      String statusCode =
+                          await widget.device.client.sendPost(dataToSend);
+                      if (statusCode != "200 OK") {
+                        showPopupOK(context, "device.retry_text".tr(),
+                            "device.cant_send_command".tr(args: [statusCode]));
+                      }
                     }
-                  }
-                }
-              ),
+                  }),
             ),
           ],
         ),
@@ -685,12 +766,12 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
 
   List<TextEditingController> textInputControllers = List.empty(growable: true);
 
-  Card _addTextInputFeature(String feature)
-  {
+  Card _addTextInputFeature(String feature) {
     // textinput1$08:00-09:30,button$Imposta$send;
     feature.replaceAll(";", "");
     List<Widget> addons = List.empty(growable: true);
-    int textInputId = int.parse(feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1]);
+    int textInputId = int.parse(feature.split(dataSeparator)[0]
+        [feature.split(dataSeparator)[0].length - 1]);
     String textInputHintText = "";
     if (feature.contains(",")) {
       textInputHintText = feature.split(",")[0].split(dataSeparator)[1];
@@ -706,37 +787,39 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       textInputControllers.add(textInputController);
     }
 
-    for (String addon in feature.split(","))
-    {
-      if (addon.contains("button"))
-      {
+    for (String addon in feature.split(",")) {
+      if (addon.contains("button")) {
         String buttonText = addon.split(dataSeparator)[1];
         addons.add(
           ElevatedButton(
-            child: Text(buttonText),
-            onPressed: () async {
-              if (dataToSend.startsWith("send")) {
-                // dataToSend: sendPOST ?key=<TEXTINPUT>
-                String template = dataToSend.split("send")[1];
-                String statusCode = await widget.device.client.sendPost("$template${textInputController.text}");
-                if (statusCode.split("\n")[0] != "200 OK") {
-                  showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
-                }
-                textInputController.clear();
-              } else {
-                if (dataToSend == "") {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
-                  });
-                } else {
-                  String statusCode = await widget.device.client.sendPost(dataToSend);
+              child: Text(buttonText),
+              onPressed: () async {
+                if (dataToSend.startsWith("send")) {
+                  // dataToSend: sendPOST ?key=<TEXTINPUT>
+                  String template = dataToSend.split("send")[1];
+                  String statusCode = await widget.device.client
+                      .sendPost("$template${textInputController.text}");
                   if (statusCode.split("\n")[0] != "200 OK") {
-                    showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
+                    showPopupOK(context, "device.retry_text".tr(),
+                        "device.cant_send_command".tr(args: [statusCode]));
+                  }
+                  textInputController.clear();
+                } else {
+                  if (dataToSend == "") {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      showPopupOK(context, "device.error_text".tr(),
+                          "device.no_content_sent".tr());
+                    });
+                  } else {
+                    String statusCode =
+                        await widget.device.client.sendPost(dataToSend);
+                    if (statusCode.split("\n")[0] != "200 OK") {
+                      showPopupOK(context, "device.retry_text".tr(),
+                          "device.cant_send_command".tr(args: [statusCode]));
+                    }
                   }
                 }
-              }
-            }
-          ),
+              }),
         );
       }
     }
@@ -748,7 +831,8 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded( // Ensures the TextField takes up available space
+            Expanded(
+              // Ensures the TextField takes up available space
               child: TextField(
                 controller: textInputController,
                 decoration: InputDecoration(
@@ -773,12 +857,12 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     return paddingChar * (totalWidth - input.length) + input;
   }
 
-  Card _addTimePickerFeature(String feature)
-  {
+  Card _addTimePickerFeature(String feature) {
     // "timepicker1$22:00-23:00,button$Imposta$sendPOST ?valve=1&schedule=;"
     feature.replaceAll(";", "");
     List<Widget> addons = List.empty(growable: true);
-    int timePickerId = int.parse(feature.split(dataSeparator)[0][feature.split(dataSeparator)[0].length - 1]);
+    int timePickerId = int.parse(feature.split(dataSeparator)[0]
+        [feature.split(dataSeparator)[0].length - 1]);
     String dataToSend = feature.split(dataSeparator)[3];
     List<String> receivedTime = List<String>.filled(2, "00:00");
     TimeOfDay startTime = TimeOfDay.now();
@@ -817,56 +901,61 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       debug.log("Invalid time format: $e");
     }
 
-    for (String addon in feature.split(","))
-    {
-      if (addon.contains("button"))
-      {
+    for (String addon in feature.split(",")) {
+      if (addon.contains("button")) {
         String buttonText = addon.split(dataSeparator)[1];
         addons.add(
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              //backgroundColor: Color.alphaBlend(Colors.white.withAlpha(150), Theme.of(context).colorScheme.inversePrimary),
-              //backgroundColor: Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerHigh.withAlpha(30), Theme.of(context).colorScheme.primary),
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
-              foregroundColor: Theme.of(context).colorScheme.onSurface,
-            ),
-            child: Text(buttonText),
-            onPressed: () async {
-              if (dataToSend.startsWith("send")) {
-                // dataToSend: sendPOST ?key=<TEXTINPUT>
-                String template = dataToSend.split("send")[1];
-                String timeToSend = "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}-${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}";
-                String statusCode = await widget.device.client.sendPost("$template$timeToSend");
-                if (statusCode.split("\n")[0] != "200 OK") {
-                  showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
-                }
-              } else {
-                if (dataToSend == "") {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    showPopupOK(context, "device.error_text".tr(), "device.no_content_sent".tr());
-                  });
-                } else {
-                  String statusCode = await widget.device.client.sendPost(dataToSend);
+              style: ElevatedButton.styleFrom(
+                //backgroundColor: Color.alphaBlend(Colors.white.withAlpha(150), Theme.of(context).colorScheme.inversePrimary),
+                //backgroundColor: Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerHigh.withAlpha(30), Theme.of(context).colorScheme.primary),
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerLow,
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
+              ),
+              child: Text(buttonText),
+              onPressed: () async {
+                if (dataToSend.startsWith("send")) {
+                  // dataToSend: sendPOST ?key=<TEXTINPUT>
+                  String template = dataToSend.split("send")[1];
+                  String timeToSend =
+                      "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}-${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}";
+                  String statusCode = await widget.device.client
+                      .sendPost("$template$timeToSend");
                   if (statusCode.split("\n")[0] != "200 OK") {
-                    showPopupOK(context, "device.retry_text".tr(), "device.cant_send_command".tr(args: [statusCode]));
+                    showPopupOK(context, "device.retry_text".tr(),
+                        "device.cant_send_command".tr(args: [statusCode]));
+                  }
+                } else {
+                  if (dataToSend == "") {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      showPopupOK(context, "device.error_text".tr(),
+                          "device.no_content_sent".tr());
+                    });
+                  } else {
+                    String statusCode =
+                        await widget.device.client.sendPost(dataToSend);
+                    if (statusCode.split("\n")[0] != "200 OK") {
+                      showPopupOK(context, "device.retry_text".tr(),
+                          "device.cant_send_command".tr(args: [statusCode]));
+                    }
                   }
                 }
-              }
-            }
-          ),
+              }),
         );
       }
     }
 
-
     Color timePickerColor;
     if (timePickerReceivedData != "${receivedTime[0]}-${receivedTime[1]}") {
-        // const Color.fromARGB(255, 255, 187, 187)
-        timePickerColor = Color.alphaBlend(Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50), const Color.fromARGB(255, 255, 72, 72));
-      } else {
-        //timePickerColor = const Color.fromARGB(255, 243, 243, 243);
-        timePickerColor = Theme.of(context).colorScheme.surfaceContainerLow;
-      }
+      // const Color.fromARGB(255, 255, 187, 187)
+      timePickerColor = Color.alphaBlend(
+          Theme.of(context).colorScheme.surfaceContainerLow.withAlpha(50),
+          const Color.fromARGB(255, 255, 72, 72));
+    } else {
+      //timePickerColor = const Color.fromARGB(255, 243, 243, 243);
+      timePickerColor = Theme.of(context).colorScheme.surfaceContainerLow;
+    }
 
     return Card(
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -874,49 +963,53 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
         padding: const EdgeInsets.all(5),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
+          children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                  backgroundColor: timePickerColor,
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(5)),
+                    backgroundColor: timePickerColor,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(5)),
+                    ),
                   ),
-                  ),
-                  child: Text("${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}"),
+                  child: Text(
+                      "${padLeft("${startTime.hour}", 2, "0")}:${padLeft("${startTime.minute}", 2, "0")}"),
                   onPressed: () async {
-                  TimeOfDay? newTime = await showTimePicker(
-                    initialEntryMode: TimePickerEntryMode.dial,
-                    context: context,
-                    initialTime: startTime,
-                  );
-                  if (newTime != null) {
-                    timePickerData[timePickerId - 1][0] = "${padLeft("${newTime.hour}", 2, "0")}:${padLeft("${newTime.minute}", 2, "0")}";
-                  }
+                    TimeOfDay? newTime = await showTimePicker(
+                      initialEntryMode: TimePickerEntryMode.dial,
+                      context: context,
+                      initialTime: startTime,
+                    );
+                    if (newTime != null) {
+                      timePickerData[timePickerId - 1][0] =
+                          "${padLeft("${newTime.hour}", 2, "0")}:${padLeft("${newTime.minute}", 2, "0")}";
+                    }
                   },
                 ),
                 const SizedBox(width: 8), // Add spacing between buttons
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                  backgroundColor: timePickerColor,
-                  foregroundColor: Theme.of(context).colorScheme.onSurface,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(5)),
+                    backgroundColor: timePickerColor,
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(5)),
+                    ),
                   ),
-                  ),
-                  child: Text("${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}"),
+                  child: Text(
+                      "${padLeft("${endTime.hour}", 2, "0")}:${padLeft("${endTime.minute}", 2, "0")}"),
                   onPressed: () async {
-                  TimeOfDay? newTime = await showTimePicker(
-                    initialEntryMode: TimePickerEntryMode.dial,
-                    context: context,
-                    initialTime: endTime,
-                  );
-                  if (newTime != null) {
-                    timePickerData[timePickerId - 1][1] = "${padLeft("${newTime.hour}", 2, "0")}:${padLeft("${newTime.minute}", 2, "0")}";
-                  }
+                    TimeOfDay? newTime = await showTimePicker(
+                      initialEntryMode: TimePickerEntryMode.dial,
+                      context: context,
+                      initialTime: endTime,
+                    );
+                    if (newTime != null) {
+                      timePickerData[timePickerId - 1][1] =
+                          "${padLeft("${newTime.hour}", 2, "0")}:${padLeft("${newTime.minute}", 2, "0")}";
+                    }
                   },
                 ),
               ],
@@ -928,8 +1021,8 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     );
   }
 
-  void _addExternalFeature() async
-  {
+  void _addExternalFeature() async {
+    if (!mounted) return;
     if (externalFeaturesWidgets.isEmpty) {
       for (String rawFeature in rawExternalFeatures.split("\n")) {
         rawFeature.replaceAll(";", "");
@@ -939,7 +1032,7 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
     }
 
     externalFeaturesWidgets.clear();
-    
+
     // external1$externalFeatureID$updateOnce;
 
     int index = 0;
@@ -947,19 +1040,22 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       rawFeature.replaceAll(";", "");
       int externalFeatureID = int.parse(rawFeature.split(dataSeparator)[1]);
 
-      externalFeaturesWidgets.addAll(await getExternalFeature(widget.device.ip, externalFeatureID, index, context, addExternalFeaturesListener));
+      final widgets = await getExternalFeature(widget.device.ip,
+          externalFeatureID, index, context, addExternalFeaturesListener);
+      if (!mounted) return;
+      externalFeaturesWidgets.addAll(widgets);
       index++;
     }
 
-    updateExternalFeaturesListener.value = !updateExternalFeaturesListener.value;
+    if (!mounted) return;
+    updateExternalFeaturesListener.value =
+        !updateExternalFeaturesListener.value;
   }
 
-  List<Widget> _generateDirectUserIOs(Device device)
-  {
+  List<Widget> _generateDirectUserIOs(Device device) {
     List<Widget> widgetList = List.empty(growable: true);
 
-    for (String feature in device.features)
-    {
+    for (String feature in device.features) {
       /**
        * example of feature:
        * switch1:Valvola1,sensor:Stato:aperta,sensor:Litri/s:5.24;
@@ -991,11 +1087,11 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
       rawExternalFeaturesAdded = true;
       addExternalFeaturesListener.value = !addExternalFeaturesListener.value;
     } else {
-      updateExternalFeaturesListener.value = !updateExternalFeaturesListener.value;
+      updateExternalFeaturesListener.value =
+          !updateExternalFeaturesListener.value;
     }
 
-    if (widgetList.isEmpty)
-    {
+    if (widgetList.isEmpty) {
       return List.empty(growable: false);
     }
 
@@ -1005,26 +1101,17 @@ class _DevicePageState extends State<DevicePage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        children: [
-          ValueListenableBuilder(
-            valueListenable: updateIOs,
-            builder: (context, updateIOs, child) {
-              return Column(
-                 children: [...userIOs]
-              );
-            }
-          ),
-          ValueListenableBuilder(
-            valueListenable: updateExternalFeaturesListener,
-            builder: (context, value, _) {
-              return Column(
-                 children: [...externalFeaturesWidgets]
-              );
-            }
-          ),
-        ]
-      )
-    );
+        body: ListView(children: [
+      ValueListenableBuilder(
+          valueListenable: updateIOs,
+          builder: (context, updateIOs, child) {
+            return Column(children: [...userIOs]);
+          }),
+      ValueListenableBuilder(
+          valueListenable: updateExternalFeaturesListener,
+          builder: (context, value, _) {
+            return Column(children: [...externalFeaturesWidgets]);
+          }),
+    ]));
   }
 }

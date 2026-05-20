@@ -233,7 +233,7 @@ Future<List<Widget>> getChart(String ip, index, BuildContext context, ValueNotif
   }
 
   response = await extServer.sendData("GET ?dev=$ip&time=${chart.selectedTimeframe}&data=${chart.rawSelectedValue}");
-  extServer.disconnect();
+  await extServer.disconnect();
 
   // handle different timeframes
   if (chart.selectedTimeframe == "days") {

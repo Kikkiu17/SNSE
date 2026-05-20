@@ -97,6 +97,9 @@
     "nov": "November",
     "dec": "December",
     "update_graph_text": "Update graph",
-    "cant_connect": "Unable to connect"
+    "cant_connect": "Unable to connect",
+    "remove_title": "Remove Device",
+    "remove_content": "Are you sure you want to remove {} from the list?",
+    "remove_text": "Remove"
   }
 }

@@ -13,20 +13,20 @@ Future<Device> createDevice(String ip, TcpClient client) async {
   Device device = Device();
   device.ip = ip;
 
-  // Rimosso Future.delayed (Fix 2)
   String response = await client.sendDataRetry("GET ?wifi=ID", connectionRetries, 100);
-  if (!response.contains("200 OK")) return device;
-  device.id = response.split("\n")[1];
+  if (response.contains("200 OK")) {
+    device.id = response.split("\n")[1];
+  }
 
-  // Rimosso Future.delayed (Fix 2)
   response = await client.sendDataRetry("GET ?wifi=name", connectionRetries, 100);
-  if (!response.contains("200 OK")) return device;
-  device.name = response.split("\n")[1];
+  if (response.contains("200 OK")) {
+    device.name = response.split("\n")[1];
+  }
 
-  // Rimosso Future.delayed (Fix 2)
   response = await client.sendDataRetry("GET ?features", connectionRetries, 100);
-  if (!response.contains("200 OK")) return device;
-  device.features = response.split("\n")[1].split(";");
+  if (response.contains("200 OK")) {
+    device.features = response.split("\n")[1].split(";");
+  }
 
   return device;
 }
@@ -64,7 +64,11 @@ Future<List<String>> scanNetwork() async {
   return foundIps.toList();
 }
 
-Future<Device?> _tryConnectDevice(String ip, bool newList) async {
+Future<Device?> _tryConnectDevice(String ipEntry, bool newList) async {
+  final parts = ipEntry.split(";");
+  final String ip = parts[0];
+  final String savedId = parts.length > 1 ? parts[1] : "";
+
   TcpClient client = TcpClient();
   bool connected = await client.connectRetry(ip, defaultPort, connectionRetries, null);
 
@@ -72,7 +76,7 @@ Future<Device?> _tryConnectDevice(String ip, bool newList) async {
     debug.log('[$ip] All connection attempts failed.');
     if (!newList) {
       Device device = Device();
-      device.id = "";
+      device.id = savedId;
       device.ip = ip;
       device.name = "OFFLINE";
       return device;
@@ -80,31 +84,59 @@ Future<Device?> _tryConnectDevice(String ip, bool newList) async {
     return null;
   }
 
+  // Allow socket buffer stabilization after connection
+  await Future.delayed(const Duration(milliseconds: 50));
+
+  String canonicalIp = ip;
   String response;
   try {
     response = await client.sendDataRetry("GET ?wifi=IP", connectionRetries, 100);
     if (response.contains("200 OK")) {
-      ip = response.split("\n")[1];
+      canonicalIp = response.split("\n")[1];
     } else {
       debug.log('[$ip] Unexpected response to ?wifi=IP: $response');
-      // Riutilizzo del client esistente per il retry immediato invece di ricreare la socket TCP (Fix 3)
       response = await client.sendDataRetry("GET ?wifi=IP", connectionRetries, 100);
       
       if (response.contains("200 OK")) {
-        ip = response.split("\n")[1];
+        canonicalIp = response.split("\n")[1];
       } else {
-        client.disconnect();
+        await client.disconnect();
+        if (!newList) {
+          Device device = Device();
+          device.id = savedId;
+          device.ip = ip;
+          device.name = "OFFLINE";
+          return device;
+        }
         return null;
       }
     }
   } catch (e) {
     debug.log('[$ip] Exception during IP handshake: $e');
-    client.disconnect();
+    await client.disconnect();
+    if (!newList) {
+      Device device = Device();
+      device.id = savedId;
+      device.ip = ip;
+      device.name = "OFFLINE";
+      return device;
+    }
     return null;
   }
 
-  Device device = await createDevice(ip, client);
-  client.disconnect();
+  Device device = await createDevice(canonicalIp, client);
+  await client.disconnect();
+
+  if (device.id.isEmpty || device.name.isEmpty) {
+    debug.log('[$ip] Incomplete info received: id="${device.id}", name="${device.name}"');
+    if (!newList) {
+      device.id = device.id.isEmpty ? savedId : device.id;
+      device.name = device.name.isEmpty ? "OFFLINE" : device.name;
+    } else {
+      return null;
+    }
+  }
+
   return device;
 }
 
@@ -128,8 +160,7 @@ Future<List<Device>> discoverDevices(
   final List<Device> devices = [];
 
   final List<Future<Device?>> futures = ips.map((ipEntry) {
-    final String ip = ipEntry.split(";")[0];
-    return _tryConnectDevice(ip, newList).then((device) {
+    return _tryConnectDevice(ipEntry, newList).then((device) {
       if (device != null) {
         devices.add(device);
         onDeviceFound?.call(devices.length);

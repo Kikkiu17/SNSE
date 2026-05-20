@@ -99,16 +99,18 @@ class _HomePageState extends State<HomePage> {
     final deviceList = await discoverDevices(
       _existingIPandIDs,
       onScanComplete: (ipCount) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _foundDeviceCount = ipCount;
           });
+        }
       },
       onDeviceFound: (count) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _foundDeviceCount = count;
           });
+        }
       },
     );
 
@@ -191,27 +193,67 @@ class _HomePageState extends State<HomePage> {
           child: const Icon(Icons.sensors)),
       title: Text(device.name),
       subtitle: Text("${device.id} | ${device.ip}"),
-      trailing: InkWell(
-        child: SizedBox(
-            height: 50,
-            width: 50,
-            child: Icon(Icons.edit,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(Icons.edit,
                 color: (device.name == "OFFLINE")
                     ? Colors.grey
-                    : Theme.of(context).colorScheme.primary)),
-        onTap: () {
-          if (device.name == "OFFLINE") {
-            showPopupOK(context, context.tr("offline_error_title"),
-                context.tr("offline_error_content"));
-          } else {
-            device.changeName(context).then((value) {
-              setState(() {
-                _updateExistingIDs = true;
-                _createDeviceList();
-              });
-            });
-          }
-        },
+                    : Theme.of(context).colorScheme.primary),
+            onPressed: () {
+              if (device.name == "OFFLINE") {
+                showPopupOK(context, context.tr("offline_error_title"),
+                    context.tr("offline_error_content"));
+              } else {
+                device.changeName(context).then((value) {
+                  setState(() {
+                    _updateExistingIDs = true;
+                    _createDeviceList();
+                  });
+                });
+              }
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline,
+                color: theme.colorScheme.error),
+            onPressed: () async {
+              bool confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (BuildContext context) => AlertDialog(
+                      title: Text(context.tr("device.remove_title")),
+                      content: Text(context.tr("device.remove_content", args: [device.name])),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text("cancel_text".tr()),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(context.tr("device.remove_text")),
+                        ),
+                      ],
+                    ),
+                  ) ??
+                  false;
+
+              if (confirm) {
+                List<String> currentSaved = await _getData();
+                currentSaved.removeWhere((item) {
+                  final parts = item.split(";");
+                  return parts[0] == device.ip;
+                });
+                _saveItem(currentSaved);
+
+                setState(() {
+                  _updateExistingIDs = true;
+                  _createDeviceList();
+                });
+              }
+            },
+          ),
+        ],
       ),
       enableFeedback: true,
       onTap: () {

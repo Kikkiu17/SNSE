@@ -40,7 +40,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
     state == AppLifecycleState.inactive || state == AppLifecycleState.hidden) {
       // app in background
       isConnected = false;
-      device.client.disconnect();
+      await device.client.disconnect();
       if (context.mounted) {
         setState(() {});
       }
@@ -131,7 +131,7 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
               ),
               child: Text("direct_socket.connect".tr()),
               onPressed: () async {
-                device.client.disconnect();
+                await device.client.disconnect();
                 device.ip = deviceIP;
                 isConnected = await device.client.connectRetry(device.ip, int.tryParse(devicePort) ?? defaultPort, connectionRetries, device);
                 sentBytes = 0;
@@ -147,8 +147,8 @@ class _DirectSocketPageState extends State<DirectSocketPage> with WidgetsBinding
                 foregroundColor: Theme.of(context).colorScheme.onSurface,
               ),
               child: Text("direct_socket.disconnect".tr()),
-              onPressed: () {
-                device.client.disconnect();
+              onPressed: () async {
+                await device.client.disconnect();
                 isConnected = false;
                 sentBytes = 0;
                 recvBytes = 0;

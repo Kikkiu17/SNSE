@@ -97,6 +97,9 @@
     "nov": "Novembre",
     "dec": "Décembre",
     "update_graph_text": "Mettre à jour le graphique",
-    "cant_connect": "Impossible de se connecter"
+    "cant_connect": "Impossible de se connecter",
+    "remove_title": "Supprimer l'appareil",
+    "remove_content": "Êtes-vous sûr de vouloir supprimer {} de la liste ?",
+    "remove_text": "Supprimer"
   }
 }
