@@ -6,7 +6,7 @@ import 'package:network_port_scanner/network_port_scanner.dart';
 import 'dart:developer' as debug;
 
 // Timeout ridotto per accelerare la scansione in LAN (Fix 4)
-const int _minScanTimeoutMs = 800;
+const int _minScanTimeoutMs = 400;
 const int _scanPasses = 2;
 
 Future<Device> createDevice(String ip, TcpClient client) async {
@@ -31,6 +31,52 @@ Future<Device> createDevice(String ip, TcpClient client) async {
   return device;
 }
 
+Future<List<String>> _concurrencyLimitedScan({
+  required int port,
+  required int timeoutMs,
+  int concurrency = 80,
+}) async {
+  final List<String> openPortIPs = [];
+  final String? deviceIP = await NetworkScanner.getDeviceIP();
+  if (deviceIP == null) {
+    debug.log('Failed to get device IP address for network scan.');
+    return [];
+  }
+
+  final subnet = deviceIP.substring(0, deviceIP.lastIndexOf('.'));
+  int nextHost = 1;
+
+  Future<void> worker() async {
+    while (true) {
+      if (nextHost > 254) break;
+      final host = nextHost;
+      nextHost++;
+
+      final ipToScan = '$subnet.$host';
+      if (ipToScan == deviceIP) {
+        continue;
+      }
+
+      try {
+        final socket = await Socket.connect(
+          ipToScan,
+          port,
+          timeout: Duration(milliseconds: timeoutMs),
+        );
+        socket.destroy();
+        openPortIPs.add(ipToScan);
+      } catch (_) {
+        // Port is closed or host unreachable
+      }
+    }
+  }
+
+  final workers = List.generate(concurrency, (_) => worker());
+  await Future.wait(workers);
+
+  return openPortIPs;
+}
+
 Future<List<String>> scanNetwork() async {
   final int configuredTimeout = savedSettings.getUpdateTime() * 2;
   final int scanTimeout = configuredTimeout < _minScanTimeoutMs
@@ -45,9 +91,10 @@ Future<List<String>> scanNetwork() async {
   for (int pass = 0; pass < passes; pass++) {
     // Rimosso delay tra i passaggi (Fix 2)
 
-    List<String> ips = await NetworkScanner.scanNetwork(
+    List<String> ips = await _concurrencyLimitedScan(
       port: defaultPort,
-      timeout: scanTimeout,
+      timeoutMs: scanTimeout,
+      concurrency: 80,
     );
 
     debug.log('[Scan pass ${pass + 1}/$passes] Found ${ips.length} devices with port $defaultPort open:');
@@ -70,6 +117,7 @@ Future<Device?> _tryConnectDevice(String ipEntry, bool newList) async {
   final String savedId = parts.length > 1 ? parts[1] : "";
 
   TcpClient client = TcpClient();
+  client.customTimeout = newList ? discoveryTimeoutMs : defaultTimeoutMs; // Longer timeout only for new discoveries
   bool connected = await client.connectRetry(ip, defaultPort, connectionRetries, null);
 
   if (!connected) {

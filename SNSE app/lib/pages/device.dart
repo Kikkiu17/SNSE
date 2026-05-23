@@ -16,6 +16,8 @@ import 'settings.dart';
 
 bool update = true;
 bool forceShowNotification = false;
+const int defaultTimeoutMs = 750;
+const int discoveryTimeoutMs = 2000;
 
 class Lock {
   bool _locked = false;
@@ -72,7 +74,7 @@ class TcpClient {
     _clearResponseQueue("");
     try {
       _socket = await Socket.connect(host, port,
-          timeout: Duration(milliseconds: customTimeout ?? 2000));
+          timeout: Duration(milliseconds: customTimeout ?? defaultTimeoutMs));
       _socket!.listen(_onData, onError: _onError, onDone: _onDone);
       debug.log("Connected to $host");
       return true;
@@ -94,7 +96,7 @@ class TcpClient {
     }
     _buffer = "";
     _clearResponseQueue("");
-    int timeoutMs = customTimeout ?? 2000;
+    int timeoutMs = customTimeout ?? defaultTimeoutMs;
     int timeoutCount = 0;
 
     for (int i = 0; i < retries; i++) {
@@ -186,11 +188,12 @@ class TcpClient {
         _socket!.write("$data\r\n");
         debug.log("\x1B[33mtrying: $data\r\n\x1B[0m");
 
-        return await completer.future.timeout(
-            Duration(milliseconds: customTimeout ?? 2000), onTimeout: () {
+        return await completer.future
+            .timeout(Duration(milliseconds: customTimeout ?? defaultTimeoutMs),
+                onTimeout: () {
           _responseQueue.remove(completer);
           debug.log(
-              '\x1B[31mNo response within ${customTimeout ?? 2000} ms. Request: $data\x1B[0m');
+              '\x1B[31mNo response within ${customTimeout ?? defaultTimeoutMs} ms. Request: $data\x1B[0m');
           _closeSocketAndCleanUp();
           return ""; // Return empty string on timeout
         });
@@ -223,7 +226,8 @@ class TcpClient {
     int timeoutCount = 0;
     for (int i = 0; i < retries; i++) {
       if (_socket == null && _lastHost != null && _lastPort != null) {
-        debug.log("Socket is null inside sendDataRetry, attempting reconnection...");
+        debug.log(
+            "Socket is null inside sendDataRetry, attempting reconnection...");
         await connectRetry(_lastHost!, _lastPort!, 1, linkedDevice);
       }
 
@@ -278,9 +282,9 @@ class TcpClient {
               linkedDevice!.ip, defaultPort, connectionRetries, linkedDevice);
           if (!connected) {
             final elapsed = DateTime.now().difference(start).inMilliseconds;
-            final sleepTime = savedSettings.getUpdateTime() > 2000
+            final sleepTime = savedSettings.getUpdateTime() > defaultTimeoutMs
                 ? savedSettings.getUpdateTime()
-                : 2000;
+                : defaultTimeoutMs;
             if (elapsed < sleepTime) {
               await Future.delayed(Duration(milliseconds: sleepTime - elapsed));
             }
