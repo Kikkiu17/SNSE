@@ -16,7 +16,7 @@ import 'settings.dart';
 
 bool update = true;
 bool forceShowNotification = false;
-const int defaultTimeoutMs = 750;
+const int defaultTimeoutMs = 1000;
 const int discoveryTimeoutMs = 2000;
 
 class Lock {
