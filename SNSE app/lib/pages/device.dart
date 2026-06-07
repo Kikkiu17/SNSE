@@ -114,7 +114,7 @@ class TcpClient {
         // We limit timeout retries to avoid long hangs.
         if (elapsed >= timeoutMs - 50) {
           timeoutCount++;
-          if (timeoutCount >= 1) {
+          if (timeoutCount >= 2) {
             debug.log('Connection timed out. Stopping retries to save time.');
             break;
           }
