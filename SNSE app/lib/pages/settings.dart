@@ -33,6 +33,8 @@ class DefaultSavedSettings {
   final bool isThemeSystem = true;
   final String extServerIP = "127.0.0.1";
   final int updateTime = 250; // ms
+  final String gateway = "";
+  final String subnetMask = "";
 }
 
 class SavedSettings {
@@ -40,13 +42,17 @@ class SavedSettings {
   static bool _isThemeSystem = DefaultSavedSettings().isThemeSystem;
   static String _extServerIP = DefaultSavedSettings().extServerIP;
   static int _updateTime = DefaultSavedSettings().updateTime;
+  static String _gateway = DefaultSavedSettings().gateway;
+  static String _subnetMask = DefaultSavedSettings().subnetMask;
 
   Map<String, dynamic> toMap() {
     return {
       'darkMode': _darkMode,
       'isThemeSystem': _isThemeSystem,
       'extServerIP': _extServerIP,
-      'updateTime': _updateTime
+      'updateTime': _updateTime,
+      'gateway': _gateway,
+      'subnetMask': _subnetMask,
     };
   }
 
@@ -55,6 +61,8 @@ class SavedSettings {
     _isThemeSystem = DefaultSavedSettings().isThemeSystem;
     _extServerIP = DefaultSavedSettings().extServerIP;
     _updateTime = DefaultSavedSettings().updateTime;
+    _gateway = DefaultSavedSettings().gateway;
+    _subnetMask = DefaultSavedSettings().subnetMask;
     //_locale = DefaultSavedSettings().locale;
     if (context != null) {
       context.resetLocale();
@@ -66,6 +74,8 @@ class SavedSettings {
     _isThemeSystem = map['isThemeSystem'];
     _extServerIP = map['extServerIP'];
     _updateTime = map['updateTime'];
+    _gateway = map['gateway'] ?? DefaultSavedSettings().gateway;
+    _subnetMask = map['subnetMask'] ?? DefaultSavedSettings().subnetMask;
   }
 
   Future<void> save() async {
@@ -136,6 +146,22 @@ class SavedSettings {
   String getExtServerIP() {
     return _extServerIP;
   }
+
+  void setGateway(String ip) {
+    _gateway = ip;
+  }
+
+  String getGateway() {
+    return _gateway;
+  }
+
+  void setSubnetMask(String mask) {
+    _subnetMask = mask;
+  }
+
+  String getSubnetMask() {
+    return _subnetMask;
+  }
 }
 
 SavedSettings savedSettings = SavedSettings();
@@ -152,11 +178,53 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
   String? _wifiIPv4,
         _wifiGatewayIP,
         _wifiSubmask;
+  String? _autoWifiGatewayIP,
+        _autoWifiSubmask;
+
+  late TextEditingController _gatewayController;
+  late TextEditingController _subnetController;
 
   bool rebuild = false;
 
+  void _updateActiveNetworkValues() {
+    _wifiGatewayIP = savedSettings.getGateway().isNotEmpty
+        ? savedSettings.getGateway()
+        : _autoWifiGatewayIP;
+
+    _wifiSubmask = savedSettings.getSubnetMask().isNotEmpty
+        ? savedSettings.getSubnetMask()
+        : _autoWifiSubmask;
+
+    if (_wifiGatewayIP != null && _wifiGatewayIP!.isNotEmpty) {
+      try {
+        gatewayIpLast = int.parse(_wifiGatewayIP!.split('.').last);
+      } catch (_) {
+        gatewayIpLast = 0;
+      }
+    } else {
+      gatewayIpLast = 0;
+    }
+  }
+
   @override
   void initState() {
+    _gatewayController = TextEditingController(text: savedSettings.getGateway());
+    _subnetController = TextEditingController(text: savedSettings.getSubnetMask());
+
+    _gatewayController.addListener(() {
+      savedSettings.setGateway(_gatewayController.text.trim());
+      setState(() {
+        _updateActiveNetworkValues();
+      });
+    });
+
+    _subnetController.addListener(() {
+      savedSettings.setSubnetMask(_subnetController.text.trim());
+      setState(() {
+        _updateActiveNetworkValues();
+      });
+    });
+
     _getNetworkInfo();
     extServerIP = savedSettings.getExtServerIP();
     WidgetsBinding.instance.addObserver(this);
@@ -165,6 +233,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
 
   @override
   void dispose() {
+    _gatewayController.dispose();
+    _subnetController.dispose();
     applySettings();
     savedSettings.save(); // Save settings on dispose
     WidgetsBinding.instance.removeObserver(this);
@@ -191,6 +261,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       if (extServerIP.split('.').length == 4) {
         savedSettings.setExtServerIP(extServerIP);
       }
+      savedSettings.setGateway(_gatewayController.text.trim());
+      savedSettings.setSubnetMask(_subnetController.text.trim());
     }
   }
 
@@ -202,20 +274,18 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     }
 
     try {
-      _wifiSubmask = await _networkInfo.getWifiSubmask();
+      _autoWifiSubmask = await _networkInfo.getWifiSubmask();
     } on PlatformException catch (e) {
       dev.log('Failed to get Wifi submask address', error: e);
     }
 
     try {
-      _wifiGatewayIP = await _networkInfo.getWifiGatewayIP();
-      if (_wifiGatewayIP != null) {
-        gatewayIpLast = int.parse(_wifiGatewayIP!.split('.').last);
-      }
+      _autoWifiGatewayIP = await _networkInfo.getWifiGatewayIP();
     } on PlatformException catch (e) {
       dev.log('Failed to get Wifi gateway address', error: e);
     }
 
+    _updateActiveNetworkValues();
     dev.log("WiFi IPv4: $_wifiIPv4, Gateway: $_wifiGatewayIP, Submask: $_wifiSubmask");
     setState(() {});
   }
@@ -226,6 +296,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
       rebuild = false;
       _getNetworkInfo();
       extServerIP = savedSettings.getExtServerIP();
+      _gatewayController.text = savedSettings.getGateway();
+      _subnetController.text = savedSettings.getSubnetMask();
     }
     
     return Scaffold(
@@ -299,6 +371,44 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
             ),
           ),
           ListTile(
+            title: Text("settings.connection.custom_gateway".tr()),
+            subtitle: Text("settings.connection.custom_gateway_description".tr(), textAlign: TextAlign.justify),
+            trailing: SizedBox(
+              width: 140,
+              height: 25,
+              child: TextField(
+                controller: _gatewayController,
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.only(bottom: 1),
+                  border: const OutlineInputBorder(),
+                  hintText: _autoWifiGatewayIP ?? 'N/A',
+                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ),
+          ListTile(
+            title: Text("settings.connection.custom_subnet_mask".tr()),
+            subtitle: Text("settings.connection.custom_subnet_mask_description".tr(), textAlign: TextAlign.justify),
+            trailing: SizedBox(
+              width: 140,
+              height: 25,
+              child: TextField(
+                controller: _subnetController,
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.only(bottom: 1),
+                  border: const OutlineInputBorder(),
+                  hintText: _autoWifiSubmask ?? 'N/A',
+                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+          ),
+          ListTile(
             title: Text("settings.interface.title".tr()),
             tileColor: Theme.of(context).colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
@@ -362,6 +472,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                 setState(() {
                   rebuild = true;
                   savedSettings.setDefault(context);
+                  _gatewayController.text = savedSettings.getGateway();
+                  _subnetController.text = savedSettings.getSubnetMask();
                   applySettings();
                   savedSettings.save();
                 });

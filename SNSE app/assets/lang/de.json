@@ -47,7 +47,11 @@
       "ext_server_ip": "Externe Server-IP",
       "ext_server_ip_description": "Wird verwendet, um externe Funktionen abzurufen (z. B. Diagramme)",
       "update_period": "Aktualisierungsintervall",
-      "update_period_description": "Legt fest, wie oft die Funktionsliste aktualisiert wird"
+      "update_period_description": "Legt fest, wie oft die Funktionsliste aktualisiert wird",
+      "custom_gateway": "Benutzerdefiniertes Gateway",
+      "custom_gateway_description": "Überschreibt die automatisch gefundene Gateway-Adresse",
+      "custom_subnet_mask": "Benutzerdefinierte Subnetzmaske",
+      "custom_subnet_mask_description": "Überschreibt die automatisch gefundene Subnetzmaske"
     },
     "interface": {
       "title": "Oberfläche",

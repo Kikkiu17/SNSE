@@ -47,7 +47,11 @@
       "ext_server_ip": "IP du serveur externe",
       "ext_server_ip_description": "Utilisé pour obtenir des fonctionnalités externes (comme les graphiques)",
       "update_period": "Période de mise à jour",
-      "update_period_description": "Spécifie la fréquence de mise à jour de la liste des fonctionnalités"
+      "update_period_description": "Spécifie la fréquence de mise à jour de la liste des fonctionnalités",
+      "custom_gateway": "Passerelle personnalisée",
+      "custom_gateway_description": "Remplace l'adresse de la passerelle trouvée automatiquement",
+      "custom_subnet_mask": "Masque de sous-réseau personnalisé",
+      "custom_subnet_mask_description": "Remplace le masque de sous-réseau trouvé automatiquement"
     },
     "interface": {
       "title": "Interface",

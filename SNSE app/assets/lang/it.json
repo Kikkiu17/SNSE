@@ -47,7 +47,11 @@
             "ext_server_ip": "IP server esterno",
             "ext_server_ip_description": "Usato per ottenere le caratteristiche esterne (come grafici)",
             "update_period": "Periodo di aggiornamento",
-            "update_period_description": "Specifica ogni quanto tempo aggiornare la lista di caratteristiche"
+            "update_period_description": "Specifica ogni quanto tempo aggiornare la lista di caratteristiche",
+            "custom_gateway": "Gateway personalizzato",
+            "custom_gateway_description": "Sovrascrive l'indirizzo del gateway trovato automaticamente",
+            "custom_subnet_mask": "Subnet mask personalizzata",
+            "custom_subnet_mask_description": "Sovrascrive la subnet mask trovata automaticamente"
         },
         "interface": {
             "title": "Interfaccia",

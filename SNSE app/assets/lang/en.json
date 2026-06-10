@@ -47,7 +47,11 @@
       "ext_server_ip": "External server IP",
       "ext_server_ip_description": "Used to retrieve external features (like graphs)",
       "update_period": "Update period",
-      "update_period_description": "Specifies how often to update the feature list"
+      "update_period_description": "Specifies how often to update the feature list",
+      "custom_gateway": "Custom gateway",
+      "custom_gateway_description": "Overrides the automatically found gateway address",
+      "custom_subnet_mask": "Custom subnet mask",
+      "custom_subnet_mask_description": "Overrides the automatically found subnet mask"
     },
     "interface": {
       "title": "Interface",

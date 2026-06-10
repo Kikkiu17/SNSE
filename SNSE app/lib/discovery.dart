@@ -43,7 +43,12 @@ Future<List<String>> _concurrencyLimitedScan({
     return [];
   }
 
-  final subnet = deviceIP.substring(0, deviceIP.lastIndexOf('.'));
+  final String subnet;
+  if (savedSettings.getGateway().isNotEmpty && savedSettings.getGateway().contains('.')) {
+    subnet = savedSettings.getGateway().substring(0, savedSettings.getGateway().lastIndexOf('.'));
+  } else {
+    subnet = deviceIP.substring(0, deviceIP.lastIndexOf('.'));
+  }
   int nextHost = 1;
 
   Future<void> worker() async {
